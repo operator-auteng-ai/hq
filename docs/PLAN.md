@@ -2,7 +2,7 @@
 
 ## Current State
 
-Empty project directory. Workflow documents created. No code, no infrastructure.
+Next.js 16 app scaffolded in `hq/` via `shadcn@latest init` (radix-maia style, taupe base). Tailwind v4 with OKLch tokens, shadcn v4, React 19, TypeScript strict. Button component, theme provider with dark mode, `cn()` utility, fonts (Roboto sans, Geist Mono), ESLint + Prettier configured. No Electron shell, no database, no dashboard UI, no backend services.
 
 ## Future State
 
@@ -12,17 +12,21 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ### Phase 0 — Skeleton
 
-**From**: Empty directory
+**From**: Bare Next.js + shadcn scaffold in `hq/`
 **To**: Bootable Electron + Next.js app with empty dashboard
 
 | Task | Description |
 |------|-------------|
-| 0.1 | Monorepo setup (Turborepo): `apps/hq`, `apps/mobile`, `packages/shared` |
-| 0.2 | Electron + Next.js wiring (Nextron) |
-| 0.3 | Tailwind CSS configuration |
-| 0.4 | SQLite database initialized with schema from ARCH.md |
-| 0.5 | Empty dashboard shell with sidebar navigation |
-| 0.6 | Build pipeline: dev (hot reload) and production (.dmg) |
+| 0.1 | Move `hq/` → `apps/hq/`, add Turborepo config at root, `packages/shared/` stub |
+| 0.2 | Electron shell wrapping the Next.js app (electron-builder) |
+| 0.3 | Build pipeline: dev (hot reload) and production (.dmg) |
+| 0.4 | Add L3 semantic status tokens to `globals.css` (see DESIGN_SYSTEM.md) |
+| 0.5 | Add shadcn components needed for shell: Sidebar, Card, Badge, Input, Separator, Tooltip, Avatar, Skeleton |
+| 0.6 | Dashboard shell layout with sidebar navigation (projects, agents, deploys, settings) |
+| 0.7 | Component registry (`components/registry/`) with types, entries, helpers, demo-map |
+| 0.8 | Design system route (`/design-system`) with token browser and component gallery (dev-only) |
+| 0.9 | SQLite database initialized with schema from ARCH.md (Drizzle ORM) |
+| 0.10 | API route scaffolding (`app/api/`) for projects, agents, deploys |
 
 **Exit Criteria**: App launches locally. Build produces a working .dmg. SQLite DB created on first launch.
 
@@ -37,12 +41,12 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 | Task | Description |
 |------|-------------|
-| 1.1 | "New Project" UI: prompt input form |
-| 1.2 | Project record creation in DB |
-| 1.3 | Doc Generator: prompt → VISION, ARCH, PLAN, TAXONOMY, CODING-STANDARDS for the new project |
+| 1.1 | "New Project" UI: prompt input form (modal or dedicated page) |
+| 1.2 | Project record creation in DB via API route |
+| 1.3 | Doc Generator: prompt → VISION, ARCH, PLAN, TAXONOMY, CODING-STANDARDS for the new project (via Claude API) |
 | 1.4 | Local workspace creation (`git init`) with generated docs committed |
-| 1.5 | Project list view on dashboard |
-| 1.6 | Project detail view showing generated docs and status |
+| 1.5 | Project list view on dashboard with status badges |
+| 1.6 | Project detail view showing generated docs, status, and phase breakdown |
 
 **Exit Criteria**: Prompt → project with 5 docs → visible in dashboard → workspace on disk as git repo.
 
@@ -59,14 +63,14 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 |------|-------------|
 | 2.1 | Agent Manager: spawn Claude Code / Codex CLI as child processes |
 | 2.2 | Feed project docs as context to agent |
-| 2.3 | Capture stdout/stderr in real-time, stream to UI |
+| 2.3 | Capture stdout/stderr in real-time, stream to UI via SSE |
 | 2.4 | Store agent task records in DB (see ARCH: `agent_tasks`) |
 | 2.5 | Agent Monitor view: live output, status, history |
 | 2.6 | Phase progression with user approval gate |
 
 **Exit Criteria**: HQ spawns agents, streams output to UI, records tasks in DB. User approves phase completion before next phase starts.
 
-**Feedback**: Refine agent spawning patterns. Update ARCH.md with any new IPC mechanisms discovered. Update TAXONOMY.md if new agent statuses emerged.
+**Feedback**: Refine agent spawning patterns. Update ARCH.md with any IPC mechanisms discovered. Update TAXONOMY.md if new agent statuses emerged.
 
 ---
 
@@ -107,42 +111,31 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ---
 
-### Phase 5 — Mobile App
-
-**From**: HQ only accessible from desktop
-**To**: Remote monitoring and control from mobile
-
-| Task | Description |
-|------|-------------|
-| 5.1 | WebSocket server in HQ (Socket.io) |
-| 5.2 | Expo React Native app scaffolded in `apps/mobile` |
-| 5.3 | Mobile connects to HQ via WebSocket |
-| 5.4 | Mobile views: project list, status, agent activity, KPIs |
-| 5.5 | Mobile actions: approve phase, trigger deploy, pause agents |
-
-**Exit Criteria**: Mobile connects to HQ. Can view projects, approve phases, receive push notifications.
-
-**Feedback**: Validate WebSocket protocol against ARCH.md. Update ARCH.md with any mobile-specific components discovered.
-
----
-
-### Phase 6 — Multi-Project Orchestration
+### Phase 5 — Multi-Project Orchestration
 
 **From**: Works for individual projects
 **To**: Smooth management of 10+ concurrent projects
 
 | Task | Description |
 |------|-------------|
-| 6.1 | Aggregate dashboard overview |
-| 6.2 | Agent concurrency limits and resource management |
-| 6.3 | Cross-project search, filtering, bulk actions |
-| 6.4 | Performance optimization for concurrent agent processes |
+| 5.1 | Aggregate dashboard overview (cross-project stats) |
+| 5.2 | Agent concurrency limits and resource management |
+| 5.3 | Cross-project search, filtering, bulk actions |
+| 5.4 | Performance optimization for concurrent agent processes |
 
 **Exit Criteria**: 10 projects running concurrently without UI lag. Bulk operations work reliably.
 
 **Feedback**: Full v0 version feedback (see WORKFLOW.md). Reconcile all docs against built system. Seed `docs/v1/` if next version is planned.
 
 ---
+
+## Deferred to v1+
+
+| Feature | Reason |
+|---------|--------|
+| Mobile companion app (React Native / Expo) | Depends on proven desktop workflows. Ship after v0 validates core loop. |
+| WebSocket server (Socket.io) | Only needed for mobile real-time sync. |
+| `apps/mobile/` directory | Created when mobile work begins in v1. |
 
 ## Dependency Graph
 
@@ -151,7 +144,6 @@ graph TD
     P0["Phase 0: Skeleton"] --> P1["Phase 1: Project Creation"]
     P1 --> P2["Phase 2: Agent Execution"]
     P2 --> P3["Phase 3: Deployment"]
-    P2 --> P5["Phase 5: Mobile App"]
     P3 --> P4["Phase 4: Monitoring"]
-    P5 --> P6["Phase 6: Multi-Project"]
+    P2 --> P5["Phase 5: Multi-Project"]
 ```

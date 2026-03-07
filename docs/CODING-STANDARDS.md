@@ -10,16 +10,25 @@
 ## Project Structure
 
 ```
-hq/                         # Next.js app (standalone for now — Electron wraps later)
-  app/                      # Next.js app router
-    globals.css             # Token definitions (L2 primitives, L3 semantic)
-    design-system/          # Living design system (dev-only)
-  components/
-    ui/                     # shadcn primitives (atom level)
-    registry/               # Component registry metadata
-  lib/                      # Utilities (cn, etc.)
-  hooks/                    # Custom hooks
-docs/                       # AutEng workflow docs
+project-root/
+  apps/
+    hq/                       # Next.js + Electron desktop app
+      app/                    # Next.js app router
+        globals.css           # Token definitions (L2 primitives, L3 semantic)
+        design-system/        # Living design system (dev-only)
+        api/                  # API routes (projects, agents, deploys)
+      components/
+        ui/                   # shadcn primitives (atom level)
+        registry/             # Component registry metadata
+      electron/               # Electron main process + preload
+      lib/
+        db/                   # Drizzle ORM schema + connection
+        utils.ts              # cn() utility
+      hooks/                  # Custom hooks
+      drizzle/                # DB migrations
+  packages/
+    shared/                   # Shared types and utilities
+  docs/                       # AutEng workflow docs
 ```
 
 See [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) for the full component registry, token architecture, and design system route structure.

@@ -1,0 +1,45 @@
+appId: "com.auteng.hq"
+productName: "AutEng HQ"
+copyright: "Copyright 2026"
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist-electron/**/*
+
+extraResources:
+  # standalone-pkg is a dereferenced copy (no pnpm symlinks)
+  - from: ".next/standalone-pkg"
+    to: "app"
+    filter:
+      - "**/*"
+  - from: ".next/static"
+    to: "app/apps/hq/.next/static"
+    filter:
+      - "**/*"
+  - from: "public"
+    to: "app/apps/hq/public"
+    filter:
+      - "**/*"
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  category: "public.app-category.developer-tools"
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+asar: true
+npmRebuild: false

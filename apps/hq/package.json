@@ -1,19 +1,26 @@
 {
-  "name": "AutEng HQ",
+  "name": "auteng-hq",
   "version": "0.0.1",
   "type": "module",
   "private": true,
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:electron": "concurrently -k \"pnpm dev\" \"wait-on http://localhost:3000 && pnpm electron:dev\"",
+    "electron:dev": "tsc -p electron/tsconfig.json && electron dist-electron/main.js",
     "build": "next build",
+    "build:electron": "pnpm build && tsc -p electron/tsconfig.json && pnpm electron:prep && electron-builder --mac",
+    "electron:prep": "rm -rf .next/standalone-pkg && rsync -aL --exclude '.pnpm' .next/standalone/ .next/standalone-pkg/",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "better-sqlite3": "^12.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.1",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
@@ -27,15 +34,22 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.1.18",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.1.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1",
+    "drizzle-kit": "^0.31.9",
+    "electron": "^40.8.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.39.2",
     "eslint-config-next": "16.1.6",
+    "get-port-please": "^3.2.0",
     "postcss": "^8",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss": "^4.1.18",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wait-on": "^9.0.4"
   }
 }
