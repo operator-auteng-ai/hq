@@ -10,13 +10,19 @@
 ## Project Structure
 
 ```
-apps/
-  hq/           # Electron + Next.js desktop app
-  mobile/       # React Native (Expo) mobile app
-packages/
-  shared/       # Types, API client, constants shared across apps
-docs/           # AutEng workflow docs (this level = HQ itself)
+hq/                         # Next.js app (standalone for now — Electron wraps later)
+  app/                      # Next.js app router
+    globals.css             # Token definitions (L2 primitives, L3 semantic)
+    design-system/          # Living design system (dev-only)
+  components/
+    ui/                     # shadcn primitives (atom level)
+    registry/               # Component registry metadata
+  lib/                      # Utilities (cn, etc.)
+  hooks/                    # Custom hooks
+docs/                       # AutEng workflow docs
 ```
+
+See [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) for the full component registry, token architecture, and design system route structure.
 
 ## Code Style
 

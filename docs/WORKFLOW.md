@@ -28,7 +28,8 @@ This hierarchy applies to building AutEng HQ itself **and** to every project HQ 
 | ARCH.md | System diagrams, schema, component boundaries, data flow | Implementation code, execution order, product decisions |
 | PLAN.md | Current state, future state, phased transition, exit criteria | Architecture details (references ARCH), progress |
 | TAXONOMY.md | Canonical names, enums, statuses, naming conventions | Definitions that belong in ARCH or VISION |
-| CODING-STANDARDS.md | Quality bars, security rules, definition of done | Architecture, product scope |
+| CODING-STANDARDS.md | Quality bars, security rules, definition of done | Architecture, product scope, design tokens |
+| DESIGN_SYSTEM.md | Tokens, color/spacing/typography/z-index scales, component registry, atomic levels, design system route | Component implementation, product scope |
 | WORKFLOW.md | Session protocol, lifecycle, feedback process | Content of other documents |
 | WORKFLOW_AUDIT.md | Append-only log of orchestrator actions (decisions, agent spawns, deploys, feedback runs) | Plan progress (that's PLAN_PROGRESS_LOG) |
 | PLAN_PROGRESS_LOG.md | Append-only record of progress against the PLAN (task completion, phase transitions, discoveries) | Orchestrator decisions (that's WORKFLOW_AUDIT) |
@@ -43,6 +44,7 @@ project/
 │   ├── PLAN.md
 │   ├── TAXONOMY.md
 │   ├── CODING-STANDARDS.md
+│   ├── DESIGN_SYSTEM.md
 │   ├── WORKFLOW.md
 │   ├── WORKFLOW_AUDIT.md       # Orchestrator action log
 │   └── PLAN_PROGRESS_LOG.md    # Progress against the plan
@@ -65,12 +67,13 @@ When starting a session (human or agent), read documents in this order:
 
 1. **WORKFLOW.md** — How to work
 2. **CODING-STANDARDS.md** — Quality rules
-3. **TAXONOMY.md** — Shared vocabulary
-4. **ARCH.md** — System design
-5. **PLAN.md** — What to build and in what order
-6. **VISION.md** — Why we're building it
-7. **PLAN_PROGRESS_LOG.md** — What's already done
-8. **WORKFLOW_AUDIT.md** — What the orchestrator has done
+3. **DESIGN_SYSTEM.md** — Tokens, components, visual rules
+4. **TAXONOMY.md** — Shared vocabulary
+5. **ARCH.md** — System design
+6. **PLAN.md** — What to build and in what order
+7. **VISION.md** — Why we're building it
+8. **PLAN_PROGRESS_LOG.md** — What's already done
+9. **WORKFLOW_AUDIT.md** — What the orchestrator has done
 
 ### Trivial Prompt Pattern
 
