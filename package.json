@@ -4,7 +4,9 @@
   "packageManager": "pnpm@10.12.1",
   "scripts": {
     "dev": "turbo run dev",
+    "dev:electron": "pnpm --filter auteng-hq dev:electron",
     "build": "turbo run build",
+    "build:electron": "pnpm --filter auteng-hq build:electron",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck"
   },
