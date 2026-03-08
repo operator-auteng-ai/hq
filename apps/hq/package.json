@@ -1,7 +1,6 @@
 {
   "name": "auteng-hq",
   "version": "0.0.1",
-  "type": "module",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -10,7 +9,7 @@
     "electron:dev": "tsc -p electron/tsconfig.json && electron dist-electron/main.js",
     "build": "next build",
     "build:electron": "pnpm build && tsc -p electron/tsconfig.json && pnpm electron:prep && electron-builder --mac",
-    "electron:prep": "rm -rf .next/standalone-pkg && rsync -aL --exclude '.pnpm' .next/standalone/ .next/standalone-pkg/",
+    "electron:prep": "bash scripts/electron-prep.sh",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
@@ -44,7 +43,6 @@
     "electron-builder": "^26.8.1",
     "eslint": "^9.39.2",
     "eslint-config-next": "16.1.6",
-    "get-port-please": "^3.2.0",
     "postcss": "^8",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",

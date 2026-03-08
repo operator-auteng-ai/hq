@@ -1,7 +1,18 @@
 import { app, BrowserWindow, screen } from "electron"
 import path from "node:path"
+import net from "node:net"
 import { ChildProcess, fork } from "node:child_process"
-import { getRandomPort } from "get-port-please"
+
+function getRandomPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer()
+    server.listen(0, "localhost", () => {
+      const addr = server.address() as net.AddressInfo
+      server.close(() => resolve(addr.port))
+    })
+    server.on("error", reject)
+  })
+}
 
 const isDev = !app.isPackaged
 
@@ -40,10 +51,10 @@ async function createWindow(url: string) {
 }
 
 async function startNextStandaloneServer(): Promise<string> {
-  const port = await getRandomPort("localhost")
-  // standalone output mirrors monorepo structure
+  const port = await getRandomPort()
+  // extraResources land at process.resourcesPath, not inside asar
   const appBase = path.join(
-    app.getAppPath(),
+    process.resourcesPath,
     "app",
     "apps",
     "hq"
