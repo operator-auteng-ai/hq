@@ -1,0 +1,26 @@
+{
+  "skill_name": "architecture",
+  "evals": [
+    {
+      "id": 1,
+      "name": "update-existing-hq-arch",
+      "prompt": "Update the architecture doc to include a plugin system. Plugins should be loadable at runtime, have access to a sandboxed API, and communicate with the main process via IPC. Think VS Code extensions but simpler.",
+      "expected_output": "Updated docs/ARCH.md with new plugin system sections woven into existing architecture, preserving existing content, adding mermaid diagrams for plugin lifecycle and IPC, and a What We Build vs Reuse section",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "greenfield-api-service",
+      "prompt": "Create an architecture doc for a new notification service. It needs to handle email, push, and SMS delivery with templating, user preferences, rate limiting, and retry logic. It'll be a standalone service consumed by our other apps via REST and events. We expect ~100k notifications/day at launch growing to 1M/day within a year.",
+      "expected_output": "New docs/ARCH.md with full greenfield structure: system overview, component diagram, sequence diagrams for notification flow, tech stack with justification, scalability considerations for the 100k-1M growth, and key decisions table",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "incremental-mobile-companion",
+      "prompt": "We need an arch doc for adding a mobile companion app to HQ. It should show real-time project status, let you approve/reject agent actions, and send push notifications for important events. The existing ARCH.md already mentions a mobile app placeholder — flesh this out into a proper feature architecture.",
+      "expected_output": "New docs/mobile/ARCH.md (incremental), referencing the existing HQ ARCH.md, with system overview showing mobile connecting to existing HQ backend, WebSocket protocol details, push notification flow, and clear New vs Reuse inventory",
+      "files": []
+    }
+  ]
+}
