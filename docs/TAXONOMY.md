@@ -5,15 +5,14 @@
 The same hierarchy governs both AutEng HQ development and every project HQ manages.
 
 ```
-Project → Version → Phase → Task
+Project → Version → Phase
 ```
 
 | Term | Definition | NOT |
 |------|-----------|-----|
 | **Project** | A self-contained business/product managed by HQ, created from a starting prompt | A git repo (a project *has* a workspace which is a repo) |
 | **Version** | A release cycle within a project (v0 = MVP, v1, v2, ...). Each version has its own docs directory and PLAN | A branch (versions are semantic, not git branches) |
-| **Phase** | A discrete stage within a version with defined scope and exit criteria. Ends with a feedback stage | A task (phases contain tasks) |
-| **Task** | An atomic unit of work within a phase — a file change, test run, deployment, or doc update. Numbered as `<phase>.<seq>` (e.g., 2.3) | A phase (tasks are smaller and atomic) |
+| **Phase** | A discrete stage within a version with defined scope and exit criteria. Ends with a feedback stage | A version (phases are smaller units within a version) |
 
 ## Other Core Entities
 
@@ -61,7 +60,7 @@ Project → Version → Phase → Task
 | `completed` | Exit criteria met, feedback applied, approved |
 | `failed` | Agent could not complete, needs intervention |
 
-### Agent Task Status
+### Agent Run Status
 
 | Value | Meaning |
 |-------|---------|

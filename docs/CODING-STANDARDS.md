@@ -60,7 +60,7 @@ See [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) for the full component registry, toke
 ## Error Handling
 
 - Never swallow errors silently
-- Agent process failures must be captured and stored in `agent_tasks.output`
+- Agent process failures must be captured and stored in `agent_runs.output`
 - Use typed error classes for distinct failure modes
 - User-facing errors must be actionable ("Deploy failed: invalid API key" not "Something went wrong")
 

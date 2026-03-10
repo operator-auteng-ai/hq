@@ -10,7 +10,6 @@ Everything has its place. No duplication. Each document owns a domain. When docu
 Project
   └── Version (v0 = MVP, v1, v2, ...)
         └── Phase (discrete deliverable with exit criteria)
-              └── Task (single unit of agent or human work)
 ```
 
 This hierarchy applies to building AutEng HQ itself **and** to every project HQ manages.
@@ -18,7 +17,6 @@ This hierarchy applies to building AutEng HQ itself **and** to every project HQ 
 - **Project**: A product/business with its own VISION, ARCH, and identity
 - **Version**: A release cycle. Each version has its own docs directory, PLAN, and ARCH diff
 - **Phase**: A stage within a version with defined scope and exit criteria
-- **Task**: An atomic action — a file change, a test run, a deployment, a doc update
 
 ## Document Ownership
 
