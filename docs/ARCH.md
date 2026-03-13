@@ -18,9 +18,9 @@ graph LR
     end
 
     subgraph Cloud["Cloud Services"]
-        AutEng["AutEng Compute<br/>(x402)"]
         Deploy["Deployment Targets<br/>(Vercel / AWS / etc.)"]
         AI["AI APIs<br/>(Claude / OpenAI)"]
+        AutEng["Tooling<br/>(x402, MCP)"]
     end
 
     HQ --> DB
@@ -205,7 +205,7 @@ erDiagram
 | **SSE** | Streaming agent output to UI in real-time | Backend → Renderer |
 | **REST** | Internal API routes, cloud deployments, AI API calls | Renderer → API, HQ → Cloud |
 | **MCP** | Tool integration (agents ↔ external services) | Bidirectional |
-| **x402** | Pay-per-request compute via AutEng | HQ → AutEng |
+| **x402** | Pay-per-request X402 | HQ → Cloud |
 
 **Deferred to v1+**: WebSocket (Socket.io) for mobile companion app real-time sync.
 

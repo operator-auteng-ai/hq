@@ -1,0 +1,19 @@
+This skill should create an ARCH document based on the user input, which should include the scope of the architecture 
+(is it a system level architecture with multiple applications from scrath or is an architecture changed from a base architecture). 
+It should create a markdown document with liberal mermaid diagrams for high level applications and their IPC; sequence diagrams; flow diagrams; component diagrams etc. 
+It should cover a very high level overview of what the architecture is about and reference any documentaiton with wider context like VISION, REQUIREMENTS or OVERVIEW. 
+It should trigger when the user asks to create and arch doc. 
+The document should not contain any implementaiton code or even class level diagrams, it is for high level systems and framework level architecture. 
+It should include considerations for things like scalability, reliability, availability, performance, security, testing and stack. 
+Feel free to ask clarifying questions of the architecture, scope and requirements and offer various approaches (with recommendations) to the user.    
+The reated document will be mutable as the architecture becomes clearer.
+Some example architecture documents are:
+  
+
+ 1. Your examples — your message cut off at "Some example architecture documents are:". Did you want to paste additional examples, or is the existing docs/ARCH.md the main reference?                                                                                                                                                                                   
+  2. Scope detection — you mentioned two modes: greenfield (system from scratch) vs. delta (changes to existing architecture). Should the skill ask the user which one it is, or try to infer from context (e.g., if there's already an ARCH.md in the project)?                                                                                                          
+  3. Output location — always docs/ARCH.md, or should the user be able to specify a path?                                                                                                                                                                                                                                                                                 
+  4. Interaction style — from your description, it sounds like the skill should be conversational: ask clarifying questions, propose approaches with recommendations, then generate the doc. Is that right? Or should it try to generate a first draft immediately and iterate from there?                                                                                
+  5. Cross-references — your existing doc references VISION, WORKFLOW, etc. Should the skill always check for these sibling docs and reference them, or only if the user mentions them?                                                                                                                                                                                   
+
+infer, ask if not clear, default to ./docs/ARCH.md for greenfield or ./docs/[version|feature]/ARCH.md for incremental, but user can specify and override. max 3 clarifying questions before creating the first draft, put options in the document and iterate on it from there until user ssatisfied. Yes check for directory level sibling documents for context.

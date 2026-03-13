@@ -34,16 +34,17 @@ High-agency individuals who want to run one or many agent-operated businesses. N
 1. **Local-first** — HQ runs on your machine. Your data, your control.
 2. **Prompt-to-product** — One prompt starts the entire lifecycle.
 3. **Agent-native** — Agents are first-class workers, not assistants. They own phases.
-4. **Open protocols** — MCP for tool integration, x402 for compute payments, standard APIs everywhere.
+4. **Open protocols** — MCP for tool integration, x402 standard APIs everywhere.
 5. **Observable** — Every agent action, deployment, and metric is visible in the dashboard.
 
 ## Pricing
 
 **Free and open source.** HQ itself costs nothing. Users pay for the services agents consume:
 
-- **Compute**: AutEng agent services via x402 (pay-per-request)
+
 - **AI**: API costs for Claude, Codex, or other models
 - **Infrastructure**: Cloud hosting costs for deployed projects (Vercel, AWS, etc.)
+- **Tooling**: X402, MCP
 
 HQ is the free cockpit; the engines have their own meters.
 
