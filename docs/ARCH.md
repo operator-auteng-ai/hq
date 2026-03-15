@@ -52,7 +52,12 @@ graph TB
         subgraph Backend["Backend Services (Next.js API Routes)"]
             API["API Layer"]
             Orchestrator["Orchestrator"]
-            AgentManager["Agent Manager"]
+            subgraph ProcessLayer["Process Management"]
+                ProcessRegistry["Process Registry<br/>(singleton)"]
+                AgentManager["Agent Manager<br/>(Claude Agent SDK)"]
+                BgProcessManager["Background Process<br/>Manager"]
+                HqMcp["HQ MCP Server<br/>(in-process)"]
+            end
             DocGenerator["Doc Generator"]
             DeployManager["Deploy Manager"]
             KPITracker["KPI Tracker"]
@@ -62,6 +67,7 @@ graph TB
 
     Main -->|"IPC (preload bridge)"| Renderer
     Main -->|"spawns standalone<br/>Next.js server"| Backend
+    Main -->|"before-quit cleanup"| ProcessRegistry
     Dashboard --> API
     ProjectView --> API
     AgentMonitor --> API
@@ -72,9 +78,13 @@ graph TB
     Orchestrator --> DeployManager
     Orchestrator --> KPITracker
     Orchestrator --> FeedbackEngine
+    AgentManager --> ProcessRegistry
+    BgProcessManager --> ProcessRegistry
+    AgentManager -->|"injects"| HqMcp
+    HqMcp -->|"reads output"| BgProcessManager
 ```
 
-The Electron main process launches a standalone Next.js server and loads it in a BrowserWindow. The preload bridge exposes a minimal IPC API (`app:minimize`, `app:maximize`, `app:close`) with context isolation. Backend services run as Next.js API routes within the same process.
+The Electron main process launches a standalone Next.js server and loads it in a BrowserWindow. The preload bridge exposes a minimal IPC API (`app:minimize`, `app:maximize`, `app:close`) with context isolation. Backend services run as Next.js API routes within the same process. The Process Registry singleton (on `globalThis`) tracks all running agent and background processes, enforcing concurrency limits and enabling clean shutdown on app quit.
 
 ## Data Flow — Prompt to Product
 
@@ -148,13 +158,46 @@ erDiagram
     agent_runs {
         text id PK
         text project_id FK
+        text phase_id FK "nullable"
         text agent_type
+        text prompt
         text command
         text status
         text output
+        text session_id
+        text model
         int exit_code
+        real cost_usd
+        int turn_count
+        int max_turns
+        real budget_usd
         timestamp created_at
         timestamp completed_at
+    }
+
+    background_processes {
+        text id PK
+        text project_id FK
+        text process_type "dev_server | test_watcher | build_watcher | custom"
+        text command
+        text args "JSON array"
+        text status
+        int port
+        text url
+        timestamp started_at
+        timestamp stopped_at
+    }
+
+    process_configs {
+        text id PK
+        text project_id FK "nullable = global default"
+        int max_agents "default 5"
+        int max_background "default 3"
+        text default_model "default sonnet"
+        int default_max_turns "default 50"
+        real default_budget_usd "default 5.0"
+        timestamp created_at
+        timestamp updated_at
     }
 
     kpi_snapshots {
@@ -177,6 +220,8 @@ erDiagram
     }
 
     projects ||--o{ agent_runs : "spawns"
+    projects ||--o{ background_processes : "runs"
+    projects ||--o| process_configs : "configures"
     projects ||--o{ kpi_snapshots : "tracks"
     projects ||--o{ deploy_events : "deploys"
 ```
@@ -187,9 +232,12 @@ erDiagram
 
 | Component | Owns | Does NOT Own |
 |-----------|------|-------------|
-| **Electron Main** | Window lifecycle, IPC bridge, spawning Next.js server, native OS integration | UI rendering, business logic |
+| **Electron Main** | Window lifecycle, IPC bridge, spawning Next.js server, native OS integration, triggering process cleanup on quit | UI rendering, business logic |
 | **Orchestrator** | Phase sequencing, project lifecycle, approval gates | Agent implementation details |
-| **Agent Manager** | Spawning/killing agent processes, streaming output (SSE), recording run results | What the agent builds |
+| **Process Registry** | In-memory map of all running processes (agents + background), concurrency limit enforcement, lifecycle events | Process implementation details, DB persistence |
+| **Agent Manager** | Spawning/killing Claude Agent SDK `query()` instances, streaming output (SSE), recording run results, session resume | What the agent builds, background processes |
+| **Background Process Manager** | Spawning/killing dev servers, test watchers, build watchers; ring-buffered output capture; health checks; port detection | Agent processes, what the processes produce |
+| **HQ MCP Server** | In-process MCP tools that agents use to interact with HQ (read background process output, start/stop processes) | Agent logic, process implementation |
 | **Doc Generator** | Generating workflow docs from prompt via AI API | Editing docs after generation (that's the Feedback Engine or agents) |
 | **Deploy Manager** | Triggering deployments, tracking URLs and status | Hosting infrastructure |
 | **KPI Tracker** | Collecting, storing, and surfacing metrics; threshold alerting | Defining what metrics matter (that's in the project's VISION) |
@@ -201,7 +249,9 @@ erDiagram
 | Protocol | Used For | Direction |
 |----------|----------|-----------|
 | **Electron IPC** | Window controls, native OS features (preload bridge with context isolation) | Main ↔ Renderer |
-| **stdio** | Local agent communication (Claude Code, Codex CLI child processes) | HQ ↔ Agent process |
+| **Claude Agent SDK** | Programmatic agent spawning via `query()` — typed streaming, abort, resume, tool control | HQ → Agent subprocess |
+| **In-process MCP** | HQ MCP server injected into agents via SDK `mcpServers` option — agents pull background process output, start/stop dev servers | Agent → HQ (within same Node.js process) |
+| **stdio** | Background process communication (dev servers, test watchers, build watchers as child processes) | HQ ↔ Background process |
 | **SSE** | Streaming agent output to UI in real-time | Backend → Renderer |
 | **REST** | Internal API routes, cloud deployments, AI API calls | Renderer → API, HQ → Cloud |
 | **MCP** | Tool integration (agents ↔ external services) | Bidirectional |
@@ -218,6 +268,7 @@ erDiagram
 | Styling | Tailwind CSS 4 + shadcn/ui v4 | Utility-first with OKLch token system, Radix primitives for accessibility |
 | Component primitives | Radix UI | Accessible, unstyled primitives consumed via shadcn |
 | Local database | SQLite (better-sqlite3 + Drizzle ORM) | Zero-config embedded DB, WAL mode for concurrent reads, type-safe queries |
+| Agent orchestration | Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) | Typed `query()` API for spawning Claude instances with streaming, abort, resume, MCP injection, budget/turn limits |
 | Agent streaming | SSE (Server-Sent Events) | One-way real-time stream from agent processes to UI |
 | Package manager | pnpm 10 | Workspace support, strict dependency resolution, disk-efficient |
 | Monorepo | Turborepo | Task orchestration, caching, dependency graph across apps/packages |
@@ -246,13 +297,77 @@ erDiagram
 | Local-first vs cloud | **Local-first** — all data on user's machine | Cloud-hosted SaaS — rejected: contradicts user control principle, adds auth/billing complexity |
 | Desktop framework | **Electron** | Tauri — smaller binary but less Node.js ecosystem support for agent spawning via stdio |
 | Database | **SQLite** | PostgreSQL — unnecessary for local single-user app. IndexedDB — no server-side access for API routes |
-| Agent communication | **stdio (child process)** | HTTP API to agents — unnecessary overhead. Docker containers — too heavy for local dev agents |
+| Agent interface | **Claude Agent SDK** (`query()` API) | Raw CLI spawning (`claude -p`) — requires manual NDJSON parsing, no typed messages, no abort/resume. Anthropic API SDK directly — loses Claude Code's built-in tools (file editing, bash, grep). Docker — too heavy for local dev agents |
+| Agent permissions | **Full bypass** (`permissionMode: 'bypassPermissions'`) | Per-tool allowlists — adds UI complexity. HQ is the trust boundary; agents scoped to project workspace via `cwd` |
 | Agent output streaming | **SSE** | WebSocket — bidirectional not needed for output streaming. Polling — poor UX for real-time output |
+| Background output feedback | **In-process MCP server** (agents pull on demand) | Push into agent context — risks context explosion. Log files — agents can't query filtered output. Shared memory — unnecessary complexity |
 | UI within Electron | **Next.js standalone server** | Static export — loses API routes. Vite — no built-in API route layer |
 | ORM | **Drizzle** | Prisma — heavier runtime, SQLite support less mature. Raw SQL — loses type safety |
 | Doc generation | **AI API (Claude)** | Templates — too rigid. User-authored — defeats prompt-to-product goal |
 | Monorepo tool | **Turborepo** | Nx — heavier config. Lerna — less maintained |
 | Free + open source | **No billing in HQ** | Freemium — rejected: HQ is the cockpit, not the engine. Users pay for cloud services directly |
+
+## Process Management
+
+HQ manages two categories of child processes: **agent processes** (Claude instances doing work) and **background processes** (dev servers, test watchers, build watchers). Both are tracked through a three-layer architecture:
+
+```
+ProcessRegistry (singleton on globalThis, survives hot reload)
+  ├── AgentManager        — Claude Agent SDK query() instances
+  └── BackgroundProcessManager — child_process.spawn for support processes
+```
+
+### Process Registry
+
+Singleton in-memory map of all running processes. Stored on `globalThis[Symbol.for("auteng.processRegistry")]` to survive Next.js hot reloads. Enforces concurrency limits:
+
+| Limit | Default | Scope |
+|-------|---------|-------|
+| Global max processes | 15 | All projects combined |
+| Max agents per project | 5 | Per project |
+| Max background processes per project | 3 | Per project |
+
+Emits events: `process:started`, `process:stopped`, `process:failed`. Electron main process calls `shutdownAll()` on `before-quit`.
+
+### Agent Manager
+
+Wraps the Claude Agent SDK `query()` function. Each agent instance has:
+- **AbortController** for clean cancellation
+- **Session ID** for resume capability after HQ restart
+- **Output accumulator** that batches DB writes (every 5s or 50 messages)
+- **SSE stream** for real-time UI updates
+
+Agents run with `permissionMode: 'bypassPermissions'` — HQ is the trust boundary. Each agent is scoped to its project workspace via `cwd`. The project's `CLAUDE.md` is auto-loaded via `settingSources: ['project']`.
+
+On HQ restart: scan `agent_runs` for `status=running`, mark as `failed`. User can resume via stored `session_id`.
+
+### Background Process Manager
+
+Manages long-lived support processes via `child_process.spawn`:
+
+| Process Type | Examples | Special Behavior |
+|-------------|----------|-----------------|
+| `dev_server` | `next dev`, `vite dev` | Port detection (parse stdout), health check polling |
+| `test_watcher` | `vitest --watch`, `jest --watch` | — |
+| `build_watcher` | `tsc --watch` | — |
+
+Output captured in a **ring buffer** (500 lines, fixed-size circular). Agents access this via the HQ MCP Server — they pull output on demand rather than having it pushed into their context.
+
+Shutdown cascade: SIGTERM → 5s → SIGINT → 3s → SIGKILL.
+
+### HQ MCP Server
+
+In-process MCP server created via `createSdkMcpServer()` and injected into every agent instance through the SDK's `mcpServers` option. Exposes tools:
+
+| Tool | Purpose |
+|------|---------|
+| `get_process_output(projectId, processType?, lines?)` | Read recent ring buffer content |
+| `get_dev_server_url(projectId)` | Get running dev server URL |
+| `get_process_status(projectId)` | Status of all background processes |
+| `start_process(processType, command, args)` | Start a background process |
+| `stop_process(projectId, processType?)` | Stop background processes |
+
+This is the key integration between agents and background processes. Agents can check compilation errors, test results, or dev server status without the output being pushed into their context window.
 
 ## Architectural Considerations
 
@@ -265,7 +380,8 @@ erDiagram
 
 ### Scalability
 
-- **Agent concurrency**: Bounded by local CPU/memory. Orchestrator manages limits per machine
+- **Agent concurrency**: ProcessRegistry enforces limits — 15 total processes, 5 agents per project, 3 background processes per project. Configurable via `process_configs` table. Each SDK `query()` spawns a Claude Code subprocess
+- **Memory**: Ring buffers cap background output at 500 lines per process. Agent output accumulated in memory and flushed to DB in batches
 - **Database growth**: SQLite handles single-digit GB well. Agent output (`agent_runs.output`) is the largest growth vector — may need rotation or archival for long-running projects
 - **Multi-project**: Dashboard aggregation queries should use indexed columns (`project_id`, `status`, `created_at`)
 
@@ -274,7 +390,7 @@ erDiagram
 - **Local-first**: No network-exposed services. Data never leaves the machine unless the user deploys
 - **Electron context isolation**: Preload bridge with explicit allowlisted IPC channels
 - **API keys**: Stored locally (env vars or encrypted config). Never committed to project workspaces
-- **Agent sandboxing**: Agents run as child processes with filesystem access scoped to project workspaces
+- **Agent sandboxing**: Agents run via Claude Agent SDK with `permissionMode: 'bypassPermissions'` — HQ is the trust boundary. Each agent scoped to its project workspace via `cwd`. No cross-project filesystem access
 
 ### Observability
 
@@ -288,7 +404,7 @@ erDiagram
 | Document | Relationship |
 |----------|-------------|
 | [VISION.md](./VISION.md) | Product scope, target users, success metrics — ARCH implements this |
-| [PLAN.md](./PLAN.md) | Phased build plan — references ARCH for component design and schema |
+| [PLAN.md](./PLAN.md) | Phased build plan with detailed Phase 1+2 breakdowns — references ARCH for component design, schema, and process management |
 | [TAXONOMY.md](./TAXONOMY.md) | Entity names, status enums, naming conventions — ARCH schema uses these |
 | [WORKFLOW.md](./WORKFLOW.md) | Session protocol, feedback stages — ARCH components implement this |
 | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) | Token architecture, component registry — consumed by Renderer |

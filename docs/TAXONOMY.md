@@ -20,9 +20,10 @@ Project → Version → Phase
 |------|-----------|-----|
 | **Prompt** | The starting natural-language description that seeds a project | An ongoing chat (it's a one-shot input) |
 | **Workspace** | The local git repository where a project's code lives | The HQ app itself |
-| **Dev Agent** | A CLI-based AI tool (Claude Code, Codex CLI) spawned as a child process | A service or daemon (agents are ephemeral) |
+| **Dev Agent** | An AI agent instance spawned via Claude Agent SDK `query()` (or CLI child process for Codex). Scoped to a project workspace, ephemeral | A service or daemon (agents are ephemeral, not long-lived) |
 | **Deployment** | A built project pushed to a cloud platform | Running locally (that's a "local run") |
 | **KPI** | A quantitative business or health metric tracked over time | A log entry (KPIs are aggregated, logs are raw) |
+| **Background Process** | A long-lived support process (dev server, test watcher, build watcher) spawned by HQ or an agent for a project | An agent (background processes don't do AI work, they provide runtime services) |
 | **Feedback** | The process of reconciling docs against reality at the end of a phase, version, or project shutdown (see WORKFLOW.md) | A retrospective (feedback updates documents, not just discussion) |
 | **Plan Progress Log** | Append-only record of task completions, phase transitions, and discoveries against the PLAN. Stored in PLAN_PROGRESS_LOG.md | An orchestrator audit (that's WORKFLOW_AUDIT) |
 | **Workflow Audit** | Append-only record of orchestrator actions: agent spawns, deploy triggers, approvals, feedback runs, doc updates. Stored in WORKFLOW_AUDIT.md | Plan progress (that's PLAN_PROGRESS_LOG) |
@@ -70,6 +71,15 @@ Project → Version → Phase
 | `failed` | Process errored (exit code != 0) |
 | `cancelled` | Killed by user or orchestrator |
 
+### Background Process Status
+
+| Value | Meaning |
+|-------|---------|
+| `starting` | Process spawned, waiting for readiness |
+| `running` | Process active and healthy |
+| `stopped` | Gracefully shut down |
+| `failed` | Process exited unexpectedly |
+
 ### Deploy Status
 
 | Value | Meaning |
@@ -86,6 +96,15 @@ Project → Version → Phase
 |-------|------|----------|
 | `claude_code` | Claude Code CLI | Primary dev agent |
 | `codex_cli` | OpenAI Codex CLI | Alternative dev agent |
+| `custom` | User-defined | Extended integrations |
+
+## Background Process Types
+
+| Value | Examples | Purpose |
+|-------|----------|---------|
+| `dev_server` | `next dev`, `vite dev` | Local development server for preview |
+| `test_watcher` | `vitest --watch`, `jest --watch` | Continuous test runner |
+| `build_watcher` | `tsc --watch` | Continuous type checking / compilation |
 | `custom` | User-defined | Extended integrations |
 
 ## Deployment Platforms

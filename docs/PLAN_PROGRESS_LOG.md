@@ -95,3 +95,30 @@
   - ✅ App launches from built .dmg and serves Next.js
   - ✅ SQLite DB created with schema (5 tables matching ARCH.md)
 - **Feedback**: CODING-STANDARDS.md updated to reflect monorepo structure. PLAN.md updated to reflect shadcn scaffold starting point. Package name changed from `AutEng HQ` to `auteng-hq` (npm naming rules).
+
+## 2026-03-15
+
+### v0 / Pre-Phase 1 / Architecture — Agent orchestration design
+- **Action**: Resolved three open architecture questions: (1) how to manage multiple Claude instances across projects, (2) what execution mode to use, (3) how background processes feed back to agents. Updated ARCH.md and PLAN.md with detailed designs.
+- **Outcome**: Architecture decisions documented and locked in:
+  - **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`) chosen over raw CLI spawning — typed streaming, AbortController, session resume, MCP injection, budget/turn limits
+  - **Three-layer process management**: ProcessRegistry singleton (concurrency limits, lifecycle events) → AgentManager (SDK `query()` wrapper) + BackgroundProcessManager (`child_process.spawn` for dev servers, test watchers, build watchers)
+  - **In-process MCP server** for agent ↔ background process feedback — agents pull output on demand via `get_process_output()`, no context explosion
+  - **Full bypass permissions** (`permissionMode: 'bypassPermissions'`) — HQ is the trust boundary, agents scoped to project workspace via `cwd`
+  - **Agent runs support both project-level and phase-level scoping** — `project_id` FK added, `phase_id` made nullable
+- **Discovery**: None — decisions informed by Claude Agent SDK capabilities
+
+### v0 / Pre-Phase 1 / Docs — ARCH.md updates
+- **Action**: Updated ARCH.md with: new Process Management section (ProcessRegistry, AgentManager, BackgroundProcessManager, HQ MCP Server), expanded DB schema (added `background_processes` and `process_configs` tables, expanded `agent_runs` with session_id/model/prompt/cost/turn tracking), updated Component Architecture diagram, updated Component Boundaries table (3 new rows), updated Integration Points (Claude Agent SDK, In-process MCP), new Key Decisions (SDK vs CLI, full bypass permissions, MCP feedback), updated Tech Stack (added `@anthropic-ai/claude-agent-sdk`), updated Scalability and Security sections.
+- **Outcome**: ARCH.md fully reflects agent orchestration architecture
+- **Discovery**: None
+
+### v0 / Pre-Phase 1 / Docs — PLAN.md restructure
+- **Action**: Folded detailed Phase 1+2 task breakdowns into PLAN.md (was temporarily in a separate v1_PLAN.md). Each phase now has a summary table + detailed breakdown section. Phase 0 marked complete. Added file structure and task dependency graphs. Updated current state to reflect Phase 0 completion. Deleted v1_PLAN.md.
+- **Outcome**: Single PLAN.md is the source of truth for all phases. `docs/v1/` directory reserved for actual version 1 per WORKFLOW.md convention.
+- **Discovery**: Naming `v1_PLAN.md` was confusing — "v1" implied version 1 but was actually a detailed expansion of v0 phases. Resolved by folding into PLAN.md with two levels: summary tables (scannable) + detailed breakdowns (implementation-ready).
+
+### v0 / Pre-Phase 1 / Docs — TAXONOMY.md updates
+- **Action**: Added Background Process entity definition, Background Process Status enum (starting/running/stopped/failed), Background Process Types enum (dev_server/test_watcher/build_watcher/custom). Updated Dev Agent definition to reference Claude Agent SDK.
+- **Outcome**: TAXONOMY.md consistent with ARCH.md schema and PLAN.md task descriptions
+- **Discovery**: None
