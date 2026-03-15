@@ -16,6 +16,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2Icon } from "lucide-react"
 
+async function parseJsonSafe(res: Response): Promise<Record<string, unknown>> {
+  try {
+    const text = await res.text()
+    if (!text) return {}
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 export function ProjectForm() {
   const router = useRouter()
   const [name, setName] = useState("")
@@ -43,30 +53,33 @@ export function ProjectForm() {
         body: JSON.stringify({ name: name.trim(), prompt: prompt.trim(), model }),
       })
 
+      const data = await parseJsonSafe(res)
+
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Failed to create project")
+        throw new Error(
+          (data.error as string) || `Server error (${res.status})`,
+        )
       }
 
-      const project = await res.json()
+      const projectId = data.id as string
+      if (!projectId) {
+        throw new Error("No project ID returned")
+      }
 
-      // Step 2: Trigger doc generation (SSE)
+      // Step 2: Trigger doc generation via SSE POST
       setGenerating(true)
       setStatusMessage("Starting doc generation...")
 
-      const eventSource = new EventSource(
-        `/api/projects/${project.id}/generate?model=${model}`,
-      )
-
-      // POST to trigger generation
-      const genRes = await fetch(`/api/projects/${project.id}/generate`, {
+      const genRes = await fetch(`/api/projects/${projectId}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model }),
       })
 
       if (!genRes.ok) {
-        throw new Error("Failed to start generation")
+        // Project was created but generation failed — still redirect
+        router.push(`/projects/${projectId}`)
+        return
       }
 
       // Read SSE stream from the POST response
@@ -84,14 +97,11 @@ export function ProjectForm() {
             for (const line of lines) {
               if (line.startsWith("data: ")) {
                 try {
-                  const data = JSON.parse(line.slice(6))
-                  if (data.message) setStatusMessage(data.message)
+                  const eventData = JSON.parse(line.slice(6))
+                  if (eventData.message) setStatusMessage(eventData.message)
                 } catch {
                   // ignore parse errors in stream
                 }
-              }
-              if (line.startsWith("event: error")) {
-                // Next data line has the error
               }
               if (line.startsWith("event: complete")) {
                 setStatusMessage("Done! Redirecting...")
@@ -101,8 +111,7 @@ export function ProjectForm() {
         }
       }
 
-      eventSource.close()
-      router.push(`/projects/${project.id}`)
+      router.push(`/projects/${projectId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong")
       setSubmitting(false)
