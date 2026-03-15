@@ -122,3 +122,50 @@
 - **Action**: Added Background Process entity definition, Background Process Status enum (starting/running/stopped/failed), Background Process Types enum (dev_server/test_watcher/build_watcher/custom). Updated Dev Agent definition to reference Claude Agent SDK.
 - **Outcome**: TAXONOMY.md consistent with ARCH.md schema and PLAN.md task descriptions
 - **Discovery**: None
+
+### v0 / Phase 1 / Task 1.1 — New Project UI
+- **Action**: Created `/projects/new` page with `ProjectForm` component. Form includes project name input, prompt textarea (min 20 chars), AI model selector (sonnet/opus/haiku). On submit, creates project via POST then triggers doc generation via SSE stream with live progress display.
+- **Outcome**: Full project creation flow from form to generation with real-time status feedback.
+- **Discovery**: None
+
+### v0 / Phase 1 / Task 1.2 — Project CRUD API with Zod validation
+- **Action**: Created Zod schemas in `lib/validations/project.ts`. Rewrote `GET /api/projects` with status filter param. Added `POST /api/projects` (create). Created `app/api/projects/[id]/route.ts` with GET (single project + phases), PATCH (update), DELETE (soft archive → status `archived`).
+- **Outcome**: Full CRUD API with input validation. Uses `drizzle-orm` `eq` operator for queries.
+- **Discovery**: None
+
+### v0 / Phase 1 / Task 1.3 — Doc Generator
+- **Action**: Created `lib/services/doc-generator.ts`. Uses `@anthropic-ai/sdk` (Anthropic API SDK) to generate 5 workflow docs. Chain: VISION → ARCH (with VISION context) → PLAN (with VISION+ARCH context) → TAXONOMY + CODING-STANDARDS in parallel (with all prior context). Each doc has a tailored system prompt defining structure and sections.
+- **Outcome**: Generates complete, project-specific workflow documentation from a single prompt.
+- **Discovery**: Doc generation uses Anthropic API SDK (`@anthropic-ai/sdk`) directly — not the Agent SDK (`@anthropic-ai/claude-agent-sdk`). The Agent SDK is for Phase 2 agent execution. These are distinct dependencies.
+
+### v0 / Phase 1 / Task 1.4 — Local workspace creation
+- **Action**: Created `lib/services/workspace.ts`. Creates `~/auteng-projects/<slug>/` with `docs/` directory containing all 5 generated docs + 2 empty append-only logs (PLAN_PROGRESS_LOG.md, WORKFLOW_AUDIT.md). Generates CLAUDE.md at repo root with project name, doc read order, and tech stack summary extracted from ARCH.md. Runs `git init` + initial commit.
+- **Outcome**: Each project gets an isolated git repo with workflow docs, ready for agent consumption.
+- **Discovery**: None
+
+### v0 / Phase 1 / Task 1.5 — Project list view
+- **Action**: Rewrote `/projects` page as client component. Card grid with project name, status badge (using semantic OKLch status tokens), prompt preview, created date. Status filter tabs (all/draft/planning/building/deployed/archived). Empty state with CTA. Created reusable `StatusBadge` component.
+- **Outcome**: Full project list with filtering and loading skeletons.
+- **Discovery**: None
+
+### v0 / Phase 1 / Task 1.6 — Project detail view
+- **Action**: Created `/projects/[id]` page with tabbed layout. Header shows name, status badge, workspace path, and action buttons (Generate/Regenerate/Archive). Tabs: Docs (nested tabs for each of 5 docs, rendered as pre-formatted text), Phases (list from DB), Agents (placeholder), Deploys (placeholder). Doc reading via `GET /api/projects/:id/docs` which reads files from workspace filesystem.
+- **Outcome**: Full project detail view with doc viewer and phase breakdown.
+- **Discovery**: None
+
+### v0 / Phase 1 / Additional — Dashboard + sidebar updates
+- **Action**: Rewrote dashboard (`/`) with stats cards (total projects, active, agents), recent projects list with status badges. Updated sidebar to highlight parent route for sub-routes (e.g., `/projects/new` highlights "Projects"). Added shadcn components: Textarea, Select, Tabs, Label, Dialog.
+- **Outcome**: Dashboard is now a functional landing page. Sidebar navigation is context-aware.
+- **Discovery**: None
+
+### v0 / Phase 1 — Complete
+- **Exit Criteria Met**:
+  - ✅ Prompt → project with 5 docs + CLAUDE.md
+  - ✅ Git repo created on disk at `~/auteng-projects/<slug>/`
+  - ✅ Visible in dashboard (project list with status filtering)
+  - ✅ Project detail shows rendered docs in tabbed viewer
+- **Phase Feedback**:
+  - All phase discoveries reviewed — one clarification: `@anthropic-ai/sdk` (Anthropic API) used for doc generation; `@anthropic-ai/claude-agent-sdk` (Agent SDK) reserved for Phase 2.
+  - ARCH.md still accurate — Phase 1 added no new component boundaries.
+  - PLAN.md remaining phases still accurate — no scope changes discovered.
+  - No orphaned TODOs or undocumented decisions.
