@@ -60,4 +60,50 @@ for scope_dir in "$APP_MODULES"/@*/; do
 done
 
 echo "→ Replaced $replaced modules with full versions"
+
+echo "→ Rebuilding native modules for Electron..."
+# better-sqlite3 must be compiled against Electron's Node.js headers,
+# not the system Node.js, otherwise we get NODE_MODULE_VERSION mismatches.
+ELECTRON_VERSION=$(node -e "console.log(require('electron/package.json').version)")
+echo "  Electron version: $ELECTRON_VERSION"
+
+# Find a better-sqlite3 directory to rebuild (prefer the one in node_modules)
+SQLITE_DIR="$APP_MODULES/better-sqlite3"
+if [ ! -d "$SQLITE_DIR" ]; then
+  # Fallback: find it anywhere in the standalone package
+  SQLITE_DIR=$(find "$PKG" -type d -name "better-sqlite3" | head -1)
+fi
+
+if [ -z "$SQLITE_DIR" ] || [ ! -d "$SQLITE_DIR" ]; then
+  echo "⚠ Could not find better-sqlite3 directory to rebuild"
+  exit 1
+fi
+
+echo "  Rebuilding: $SQLITE_DIR"
+npx @electron/rebuild \
+  --version "$ELECTRON_VERSION" \
+  --module-dir "$SQLITE_DIR" \
+  --only better-sqlite3
+
+# Next.js standalone traces native modules into .next/node_modules/ with
+# content-hashed directory names (e.g. better-sqlite3-90e2652d1716b047).
+# We need to replace ALL .node binaries with the Electron-rebuilt versions.
+REBUILT_NODE="$SQLITE_DIR/build/Release/better_sqlite3.node"
+if [ -f "$REBUILT_NODE" ]; then
+  echo "→ Replacing all traced better_sqlite3.node copies..."
+  copied=0
+  while IFS= read -r target; do
+    # Skip the source file itself
+    [ "$target" = "$REBUILT_NODE" ] && continue
+    cp "$REBUILT_NODE" "$target"
+    echo "  Replaced: $target"
+    copied=$((copied + 1))
+  done < <(find "$PKG" -name "better_sqlite3.node" -type f)
+  echo "✓ Replaced $copied additional .node copies"
+else
+  echo "⚠ Rebuilt .node file not found at $REBUILT_NODE"
+  exit 1
+fi
+
+echo "✓ Native modules rebuilt for Electron $ELECTRON_VERSION"
 echo "✓ Standalone package ready for electron-builder"

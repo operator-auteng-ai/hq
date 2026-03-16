@@ -1,6 +1,6 @@
 {
   "name": "auteng-hq",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "dev:electron": "concurrently -k \"pnpm dev\" \"wait-on http://localhost:3000 && pnpm electron:dev\"",
     "electron:dev": "tsc -p electron/tsconfig.json && electron dist-electron/main.js",
     "build": "next build",
-    "build:electron": "pnpm build && tsc -p electron/tsconfig.json && pnpm electron:prep && electron-builder --mac",
+    "build:electron": "bash scripts/bump-version.sh && pnpm build && tsc -p electron/tsconfig.json && pnpm electron:prep && electron-builder --mac",
     "electron:prep": "bash scripts/electron-prep.sh",
     "start": "next start",
     "lint": "eslint",
@@ -35,6 +35,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/jest-dom": "^6.9.1",

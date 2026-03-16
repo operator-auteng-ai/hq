@@ -42,4 +42,7 @@ dmg:
       path: /Applications
 
 asar: true
+asarUnpack:
+  # Native .node binaries must be outside asar for dlopen() to work
+  - "**/*.node"
 npmRebuild: false
