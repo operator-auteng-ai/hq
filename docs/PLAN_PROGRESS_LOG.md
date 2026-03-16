@@ -158,14 +158,37 @@
 - **Outcome**: Dashboard is now a functional landing page. Sidebar navigation is context-aware.
 - **Discovery**: None
 
+### v0 / Phase 1 / Testing — 55-test suite
+- **Action**: Added Vitest with jsdom + @testing-library/react. Created test infrastructure: `vitest.config.ts`, `vitest.setup.ts`, `lib/test-helpers.ts` (in-memory SQLite factory + project seeder). Test files: `project.test.ts` (15 validation tests), `doc-generator.test.ts` (7 service tests), `workspace.test.ts` (8 service tests), `route.test.ts` (8 project list API tests), `[id]/route.test.ts` (12 project detail API tests), `status-badge.test.tsx` (5 component tests).
+- **Outcome**: 55 passing tests covering validations, API routes, services, and components.
+- **Discovery**: `vi.mock` with `require()` path aliases fails inside factory functions — use `vi.importActual()` instead. Mock classes needed for `new Anthropic()` pattern. Next.js `NextRequest` needed instead of standard `Request` for `.nextUrl` property.
+
+### v0 / Phase 1 / Electron — Production DB crash fix
+- **Action**: Fixed multiple Electron production issues: (1) DB path used `process.cwd()` which is read-only inside `.app` bundle — changed to `~/Library/Application Support/AutEng HQ/data/` via `HQ_DATA_DIR` env var. (2) Added `CREATE TABLE IF NOT EXISTS` for all 5 tables (Drizzle doesn't auto-create). (3) Added `better-sqlite3` to `serverExternalPackages` in `next.config.mjs`. (4) Added comprehensive file logging to `~/Library/Logs/auteng-hq/main.log`. (5) Hardened API error handling with try/catch on all routes.
+- **Outcome**: Electron production app can create and read from SQLite DB.
+- **Discovery**: `app.getPath("logs")` returns `~/Library/Logs/auteng-hq/` (lowercase, from package.json name), not `~/Library/Logs/AutEng HQ/`.
+
+### v0 / Phase 1 / Electron — Native module rebuild fix
+- **Action**: Fixed NODE_MODULE_VERSION 141 vs 143 crash. Root cause: Next.js standalone traces `better-sqlite3` into content-hashed `.next/node_modules/better-sqlite3-<hash>/` directories. The old rebuild step only fixed the regular `node_modules/` copy, but Node's `require()` resolved to the content-hashed one. Fix: (1) Added `@electron/rebuild` as devDependency. (2) Updated `electron-prep.sh` to rebuild `better-sqlite3` for Electron then `find` and replace ALL `.node` copies in the standalone package. (3) Added `asarUnpack: ["**/*.node"]` to `electron-builder.yml` so native binaries are extracted outside asar for `dlopen()`.
+- **Outcome**: Electron production app loads SQLite correctly. Project creation works end-to-end.
+- **Discovery**: Next.js standalone traces native modules into `.next/node_modules/<pkg>-<content-hash>/` directories. At runtime, Node resolves to these copies, not the regular `node_modules/` copy. Must find and replace ALL `.node` binaries after `@electron/rebuild`, not just the primary one.
+
+### v0 / Phase 1 / Build — Auto version bumping
+- **Action**: Created `scripts/bump-version.sh` (auto-increments patch version, supports major/minor/patch arg). Wired into `build:electron` script as first step. Added `apps/hq/main.js` to `.gitignore` (compiled artifact). Also added `docs/SOFTWARE_PHILOSOPHY.md` documenting core principles (DRY, composition over inheritance, model real world in ERD, fail fast, SOLID, YAGNI, explicit over implicit, minimise blast radius, optimise for reading).
+- **Outcome**: Every DMG build gets a unique, monotonically increasing version number.
+- **Discovery**: None
+
 ### v0 / Phase 1 — Complete
 - **Exit Criteria Met**:
   - ✅ Prompt → project with 5 docs + CLAUDE.md
   - ✅ Git repo created on disk at `~/auteng-projects/<slug>/`
   - ✅ Visible in dashboard (project list with status filtering)
   - ✅ Project detail shows rendered docs in tabbed viewer
+  - ✅ Electron production .dmg works (SQLite, native modules, logging)
+  - ✅ 55 tests passing (validations, APIs, services, components)
 - **Phase Feedback**:
   - All phase discoveries reviewed — one clarification: `@anthropic-ai/sdk` (Anthropic API) used for doc generation; `@anthropic-ai/claude-agent-sdk` (Agent SDK) reserved for Phase 2.
   - ARCH.md still accurate — Phase 1 added no new component boundaries.
   - PLAN.md remaining phases still accurate — no scope changes discovered.
+  - Key Electron packaging lesson: Next.js standalone + native modules requires careful handling of content-hashed traced copies.
   - No orphaned TODOs or undocumented decisions.

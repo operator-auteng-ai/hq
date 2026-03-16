@@ -2,12 +2,15 @@
 
 ## Current State
 
-Phase 0 complete. Skeleton app running locally:
-- Electron + Next.js shell with sidebar navigation
-- SQLite database with schema (`projects`, `phases`, `agentTasks`, `kpiSnapshots`, `deployEvents`)
-- API route scaffolds (`/api/projects`, `/api/agents`, `/api/deploys`)
-- Design system route, component registry, OKLch token system
-- `.dmg` build pipeline working
+Phase 1 complete. Project creation working end-to-end:
+- Electron + Next.js app with sidebar navigation, dashboard, project list
+- SQLite database with schema and auto-creation on fresh install
+- Project CRUD API with Zod validation
+- Doc Generator (Claude API) with SSE streaming progress
+- Workspace creation (git init, CLAUDE.md, 5 workflow docs)
+- Project detail view with tabbed doc viewer
+- 55-test suite (validations, API routes, services, components)
+- `.dmg` build pipeline with native module rebuild and auto version bumping
 
 ## Future State
 
@@ -39,7 +42,7 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ---
 
-### Phase 1 — Project Creation
+### Phase 1 — Project Creation ✅
 
 **From**: Empty dashboard, no projects
 **To**: User creates projects from a prompt, gets auto-generated workflow docs, sees them in dashboard
