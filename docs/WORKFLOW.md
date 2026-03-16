@@ -31,6 +31,7 @@ This hierarchy applies to building AutEng HQ itself **and** to every project HQ 
 | WORKFLOW.md | Session protocol, lifecycle, feedback process | Content of other documents |
 | WORKFLOW_AUDIT.md | Append-only log of orchestrator actions (decisions, agent spawns, deploys, feedback runs) | Plan progress (that's PLAN_PROGRESS_LOG) |
 | PLAN_PROGRESS_LOG.md | Append-only record of progress against the PLAN (task completion, phase transitions, discoveries) | Orchestrator decisions (that's WORKFLOW_AUDIT) |
+| SOFTWARE_PHILOSOPHY.md | Approaches to software architecture and design to keep in mind |
 
 ## Directory Structure
 
