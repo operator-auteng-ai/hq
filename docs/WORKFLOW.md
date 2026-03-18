@@ -87,7 +87,8 @@ The agent then:
 4. Applies CODING-STANDARDS.md quality rules
 5. Checks PLAN_PROGRESS_LOG.md for context on prior work
 6. Implements the task
-7. Logs progress to PLAN_PROGRESS_LOG.md
+7. Smoke-tests the running app (see Smoke Test Protocol below)
+8. Logs progress to PLAN_PROGRESS_LOG.md
 
 ## Development Lifecycle
 
@@ -186,6 +187,7 @@ Feedback is the mechanism that keeps documentation accurate as reality diverges 
 - [ ] PLAN.md remaining phases still accurate
 - [ ] ARCH.md still reflects actual system
 - [ ] No orphaned TODOs or undocumented decisions
+- [ ] Smoke test passed (see Smoke Test Protocol)
 
 ### 2. Version Feedback (end of every version)
 
@@ -217,6 +219,24 @@ Feedback is the mechanism that keeps documentation accurate as reality diverges 
 4. Final PLAN_PROGRESS_LOG entry summarizing project state
 
 **Output**: A project that can be resumed by any developer or agent with zero context beyond the docs.
+
+## Smoke Test Protocol
+
+Unit tests verify components in isolation. Smoke tests verify the app actually works. Both are required before a phase can be marked complete.
+
+**When**: After all tasks in a phase are implemented and unit tests pass, but BEFORE writing the phase completion log entry.
+
+**Process**:
+1. Start the dev server (`pnpm dev`) and confirm it compiles without errors
+2. Load every new or modified page in the browser — verify they render (no blank screens, no hydration failures)
+3. Click every new button/action added in the phase — verify it produces a visible response (loading state, success, or a clear error message)
+4. Check the browser console for JavaScript errors
+5. For any feature requiring environment variables or external services, verify the error path explicitly: remove/omit the config and confirm the UI shows a clear, actionable error
+6. For API routes, `curl` each new endpoint and verify the response format matches what the client expects
+
+**Why this exists**: Unit tests with mocked dependencies can pass while the actual app is broken. Module resolution failures, missing env vars, broken SSE parsing, and unhydrated React pages are invisible to Vitest but immediately visible to a user. If a smoke test would have caught the bug, the phase is not done.
+
+**Failure mode**: If a smoke test reveals a bug, fix it, add a regression unit test, then re-run the smoke test. Do not mark the phase complete until the smoke test passes.
 
 ## Cross-Document Rules
 

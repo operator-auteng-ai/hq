@@ -28,20 +28,61 @@ export const phases = sqliteTable("phases", {
   completedAt: text("completed_at"),
 })
 
-export const agentTasks = sqliteTable("agent_tasks", {
+export const agentRuns = sqliteTable("agent_runs", {
   id: text("id").primaryKey(),
-  phaseId: text("phase_id")
+  projectId: text("project_id")
     .notNull()
-    .references(() => phases.id),
+    .references(() => projects.id),
+  phaseId: text("phase_id").references(() => phases.id),
   agentType: text("agent_type").notNull(),
-  command: text("command").notNull(),
+  prompt: text("prompt").notNull(),
+  command: text("command"),
   status: text("status").notNull().default("queued"),
   output: text("output"),
+  sessionId: text("session_id"),
+  model: text("model"),
   exitCode: integer("exit_code"),
+  costUsd: real("cost_usd"),
+  turnCount: integer("turn_count"),
+  maxTurns: integer("max_turns"),
+  budgetUsd: real("budget_usd"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
   completedAt: text("completed_at"),
+})
+
+export const backgroundProcesses = sqliteTable("background_processes", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id),
+  processType: text("process_type").notNull(),
+  command: text("command").notNull(),
+  args: text("args"),
+  status: text("status").notNull().default("starting"),
+  port: integer("port"),
+  url: text("url"),
+  startedAt: text("started_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  stoppedAt: text("stopped_at"),
+})
+
+export const processConfigs = sqliteTable("process_configs", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").references(() => projects.id),
+  maxAgents: integer("max_agents").default(5),
+  maxBackground: integer("max_background").default(3),
+  defaultModel: text("default_model").default("sonnet"),
+  defaultMaxTurns: integer("default_max_turns").default(50),
+  defaultBudgetUsd: real("default_budget_usd").default(5.0),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
 })
 
 export const kpiSnapshots = sqliteTable("kpi_snapshots", {
@@ -63,6 +104,7 @@ export const deployEvents = sqliteTable("deploy_events", {
     .references(() => projects.id),
   platform: text("platform").notNull(),
   environment: text("environment").notNull(),
+  versionLabel: text("version_label"),
   status: text("status").notNull().default("pending"),
   url: text("url"),
   deployedAt: text("deployed_at")

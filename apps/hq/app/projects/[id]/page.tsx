@@ -7,12 +7,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/status-badge"
+import { AgentCard } from "@/components/agent-card"
+import { AgentOutput } from "@/components/agent-output"
+import { ProcessStatusPanel } from "@/components/process-status"
 import {
   ArrowLeftIcon,
   ArchiveIcon,
   RefreshCwIcon,
   FolderIcon,
   Loader2Icon,
+  PlayIcon,
+  CheckIcon,
+  XIcon,
+  SkipForwardIcon,
 } from "lucide-react"
 
 interface Project {
@@ -31,6 +38,19 @@ interface Project {
     status: string
     exitCriteria: string | null
   }>
+}
+
+interface AgentRun {
+  id: string
+  projectId: string
+  prompt: string
+  status: string
+  model: string | null
+  turnCount: number | null
+  costUsd: number | null
+  createdAt: string
+  completedAt: string | null
+  sessionId: string | null
 }
 
 interface ProjectDocs {
@@ -54,9 +74,15 @@ export default function ProjectDetailPage({
   const [docsLoading, setDocsLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [genStatus, setGenStatus] = useState("")
+  const [genError, setGenError] = useState("")
+  const [agents, setAgents] = useState<AgentRun[]>([])
+  const [viewingOutput, setViewingOutput] = useState<string | null>(null)
 
   useEffect(() => {
     loadProject()
+    loadAgents()
+    const interval = setInterval(loadAgents, 3000)
+    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -85,10 +111,55 @@ export default function ProjectDetailPage({
     setDocsLoading(false)
   }
 
+  async function loadAgents() {
+    const res = await fetch(`/api/agents?projectId=${id}`)
+    if (res.ok) {
+      setAgents(await res.json())
+    }
+  }
+
+  async function handleStartPhase(phaseId: string) {
+    const res = await fetch("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: id, prompt: `Implement phase`, phaseId }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setViewingOutput(data.agentId)
+      loadAgents()
+      loadProject()
+    }
+  }
+
+  async function handlePhaseAction(phaseId: string, action: string) {
+    await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phaseAction: { phaseId, action } }),
+    })
+    loadProject()
+  }
+
+  async function handleCancelAgent(agentId: string) {
+    await fetch(`/api/agents/${agentId}`, { method: "DELETE" })
+    loadAgents()
+  }
+
+  async function handleResumeAgent(agentId: string) {
+    const res = await fetch(`/api/agents/${agentId}/resume`, { method: "POST" })
+    if (res.ok) {
+      const data = await res.json()
+      setViewingOutput(data.agentId)
+    }
+    loadAgents()
+  }
+
   async function handleGenerate() {
     if (!project || generating) return
     setGenerating(true)
     setGenStatus("Starting...")
+    setGenError("")
 
     try {
       const res = await fetch(`/api/projects/${id}/generate`, {
@@ -97,23 +168,39 @@ export default function ProjectDetailPage({
         body: JSON.stringify({ model: "sonnet" }),
       })
 
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        setGenError(err.error || `Server error (${res.status})`)
+        return
+      }
+
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
+      let errorMessage = ""
 
       if (reader) {
         let done = false
+        let nextIsError = false
         while (!done) {
           const result = await reader.read()
           done = result.done
           if (result.value) {
             const text = decoder.decode(result.value)
             for (const line of text.split("\n")) {
+              if (line.startsWith("event: error")) {
+                nextIsError = true
+              }
               if (line.startsWith("data: ")) {
                 try {
                   const data = JSON.parse(line.slice(6))
-                  if (data.message) setGenStatus(data.message)
+                  if (nextIsError && data.message) {
+                    errorMessage = data.message
+                    nextIsError = false
+                  } else if (data.message) {
+                    setGenStatus(data.message)
+                  }
                 } catch {
-                  // ignore
+                  // ignore partial JSON
                 }
               }
             }
@@ -121,9 +208,13 @@ export default function ProjectDetailPage({
         }
       }
 
-      await loadProject()
-    } catch {
-      setGenStatus("Generation failed")
+      if (errorMessage) {
+        setGenError(errorMessage)
+      } else {
+        await loadProject()
+      }
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : "Generation failed")
     } finally {
       setGenerating(false)
     }
@@ -206,6 +297,12 @@ export default function ProjectDetailPage({
         </div>
       )}
 
+      {!generating && genError && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {genError}
+        </div>
+      )}
+
       {/* Prompt */}
       <Card>
         <CardHeader>
@@ -223,9 +320,7 @@ export default function ProjectDetailPage({
         <TabsList>
           <TabsTrigger value="docs">Docs</TabsTrigger>
           <TabsTrigger value="phases">Phases</TabsTrigger>
-          <TabsTrigger value="agents" disabled>
-            Agents
-          </TabsTrigger>
+          <TabsTrigger value="agents">Agents</TabsTrigger>
           <TabsTrigger value="deploys" disabled>
             Deploys
           </TabsTrigger>
@@ -272,7 +367,45 @@ export default function ProjectDetailPage({
                       </span>
                       <span className="font-medium">{phase.name}</span>
                     </div>
-                    <StatusBadge status={phase.status} />
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={phase.status} />
+                      {phase.status === "pending" && hasDocs && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStartPhase(phase.id)}
+                        >
+                          <PlayIcon className="mr-1 h-3 w-3" />
+                          Start
+                        </Button>
+                      )}
+                      {phase.status === "review" && (
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handlePhaseAction(phase.id, "approve")}
+                          >
+                            <CheckIcon className="mr-1 h-3 w-3" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handlePhaseAction(phase.id, "reject")}
+                          >
+                            <XIcon className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handlePhaseAction(phase.id, "skip")}
+                          >
+                            <SkipForwardIcon className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -280,14 +413,38 @@ export default function ProjectDetailPage({
           )}
         </TabsContent>
 
-        <TabsContent value="agents" className="mt-4">
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">
-                Agent execution will be available in Phase 2.
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="agents" className="mt-4 space-y-4">
+          {viewingOutput && (
+            <AgentOutput
+              agentId={viewingOutput}
+              onClose={() => setViewingOutput(null)}
+            />
+          )}
+
+          <ProcessStatusPanel projectId={id} />
+
+          {agents.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-muted-foreground">
+                  No agents have been spawned for this project. Start a phase to
+                  begin agent execution.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {agents.map((agent) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  onCancel={handleCancelAgent}
+                  onResume={handleResumeAgent}
+                  onViewOutput={setViewingOutput}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="deploys" className="mt-4">

@@ -36,6 +36,7 @@ const isDev = !app.isPackaged
 
 let mainWindow: BrowserWindow | null = null
 let nextServerProcess: ChildProcess | null = null
+let nextServerPort: number | null = null
 
 async function createWindow(url: string) {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
@@ -119,6 +120,7 @@ async function startNextStandaloneServer(): Promise<string> {
         if (res.ok || res.status < 500) {
           clearInterval(interval)
           log("Next.js server ready at", `http://localhost:${port}`)
+          nextServerPort = port
           resolve(`http://localhost:${port}`)
         }
       } catch {
@@ -164,9 +166,28 @@ app.on("window-all-closed", () => {
   }
 })
 
-app.on("before-quit", () => {
-  log("Shutting down...")
-  if (nextServerProcess) {
+app.on("before-quit", async () => {
+  log("Shutting down — cleaning up processes...")
+
+  // Signal the Next.js server to clean up managed processes via a shutdown endpoint
+  // The ProcessRegistry and managers live in the Next.js process, not in Electron main
+  if (nextServerProcess && !nextServerProcess.killed) {
+    try {
+      // Give the server a chance to clean up (ProcessRegistry.shutdownAll)
+      if (nextServerPort) {
+        await fetch(`http://localhost:${nextServerPort}/api/processes/shutdown`, {
+          method: "POST",
+          signal: AbortSignal.timeout(8000),
+        }).catch(() => {
+          // Endpoint may not exist or server may be shutting down
+        })
+      }
+    } catch {
+      // ignore
+    }
+
     nextServerProcess.kill()
   }
+
+  log("Shutdown complete")
 })

@@ -16,6 +16,11 @@ const STATUS_STYLES: Record<string, string> = {
   failed: "bg-status-failed/15 text-status-failed border-status-failed/25",
   running: "bg-status-running/15 text-status-running border-status-running/25",
   queued: "bg-status-queued/15 text-status-queued border-status-queued/25",
+  cancelled: "bg-status-paused/15 text-status-paused border-status-paused/25",
+  starting: "bg-status-queued/15 text-status-queued border-status-queued/25",
+  stopped: "bg-status-draft/15 text-status-draft border-status-draft/25",
+  review: "bg-status-queued/15 text-status-queued border-status-queued/25",
+  feedback: "bg-status-running/15 text-status-running border-status-running/25",
 }
 
 export function StatusBadge({

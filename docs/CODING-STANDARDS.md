@@ -79,6 +79,9 @@ See [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) for the full component registry, toke
 - E2E tests for critical flows (create project, run agent, deploy)
 - Test framework: Vitest
 - Target: critical paths covered, not 100% line coverage
+- **Smoke tests are mandatory** — unit tests with mocked deps are insufficient. See WORKFLOW.md Smoke Test Protocol
+- Every user-facing error path must be tested (missing env vars, network failures, invalid input)
+- API route tests must verify actual HTTP responses, not just service-layer logic
 
 ## Performance
 
@@ -99,5 +102,8 @@ A task is done when:
 1. Code is written and type-checks (`tsc --noEmit`)
 2. Tests pass (`npm test`)
 3. Lint passes (`npm run lint`)
-4. Feature works in the Electron app (not just browser)
-5. No `TODO` or `FIXME` left without a linked issue
+4. Dev server starts without compilation errors (`pnpm dev`)
+5. New/modified pages render in the browser and buttons respond to clicks
+6. Error paths show clear, actionable messages (not silent failures)
+7. Feature works in the Electron app (not just browser)
+8. No `TODO` or `FIXME` left without a linked issue

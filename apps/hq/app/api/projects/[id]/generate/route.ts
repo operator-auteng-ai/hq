@@ -23,6 +23,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const body = await request.json().catch(() => ({}))
   const model = (body.model as "sonnet" | "opus" | "haiku") || "sonnet"
 
+  // Pre-flight check: verify API key exists before starting generation
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { error: "ANTHROPIC_API_KEY is not configured. Add it to apps/hq/.env.local" },
+      { status: 500 },
+    )
+  }
+
   // Update status to planning
   db.update(schema.projects)
     .set({ status: "planning", updatedAt: new Date().toISOString() })

@@ -192,3 +192,109 @@
   - PLAN.md remaining phases still accurate — no scope changes discovered.
   - Key Electron packaging lesson: Next.js standalone + native modules requires careful handling of content-hashed traced copies.
   - No orphaned TODOs or undocumented decisions.
+
+## 2026-03-16
+
+### v0 / Phase 2 / Task 2.1 — Dependencies
+- **Action**: Installed `@anthropic-ai/claude-agent-sdk@^0.2.76`, `uuid@^13.0.0`, `@types/uuid@^11.0.0`. Added `@anthropic-ai/claude-agent-sdk` to `serverExternalPackages` in `next.config.mjs`.
+- **Outcome**: All SDK dependencies available.
+- **Discovery**: `zod` was already installed from Phase 1 — no duplication needed.
+
+### v0 / Phase 2 / Task 2.2 — Schema Migration
+- **Action**: Replaced `agentTasks` table with `agentRuns` table (added `project_id` FK, nullable `phase_id`, `session_id`, `model`, `prompt`, `cost_usd`, `turn_count`, `max_turns`, `budget_usd`). Created `background_processes` table (process_type, command, args, status, port, url). Created `process_configs` table (per-project or global defaults for concurrency, model, turns, budget). Added `version_label` to `deploy_events`. Updated `SCHEMA_SQL` in `lib/db/index.ts`. Updated test helpers.
+- **Outcome**: All 8 tables in schema match ARCH.md ERD exactly.
+- **Discovery**: Zod v4 uses `.issues` not `.errors` for validation error access. Updated API routes accordingly.
+
+### v0 / Phase 2 / Task 2.4 — RingBuffer + Shared Types
+- **Action**: Created `lib/process/types.ts` with all process management types: `ManagedProcess`, `AgentInstance`, `BackgroundProcess`, `AgentConfig`, `ConcurrencyLimits`, `RingBufferEntry`, `ConcurrencyLimitError`. Created `lib/process/ring-buffer.ts` with 500-line circular buffer (push, getAll, getLast, clear).
+- **Outcome**: Shared type system and ring buffer ready for use by all process managers.
+- **Discovery**: None.
+
+### v0 / Phase 2 / Task 2.3 — ProcessRegistry Singleton
+- **Action**: Created `lib/process/process-registry.ts`. Singleton on `globalThis[Symbol.for("auteng.processRegistry")]`. Extends `EventEmitter`. Methods: register, unregister, markFailed, get, getByProject, getByType, getAll, count, countByProject, shutdownAll. Enforces concurrency limits (15 global, 5 agents/project, 3 background/project).
+- **Outcome**: Central registry for all running processes with event emission and concurrency enforcement.
+- **Discovery**: None.
+
+### v0 / Phase 2 / Task 2.5 — BackgroundProcessManager
+- **Action**: Created `lib/process/background-process-manager.ts`. Manages `child_process.spawn` for dev servers, test watchers, build watchers. Pipes stdout/stderr to RingBuffer. Auto-detects port from dev server output. Health check polling for dev servers. Graceful shutdown cascade: SIGTERM → 5s → SIGINT → 3s → SIGKILL. DB persistence for all state changes.
+- **Outcome**: Full lifecycle management for background processes.
+- **Discovery**: None.
+
+### v0 / Phase 2 / Task 2.6 — HQ MCP Server
+- **Action**: Created `lib/process/hq-mcp-server.ts` using `createSdkMcpServer()` from Agent SDK. 5 tools with Zod schemas: `get_process_output`, `get_dev_server_url`, `get_process_status`, `start_process`, `stop_process`. Each tool scoped to the agent's project via closure over `projectId`.
+- **Outcome**: In-process MCP server injectable into every agent instance.
+- **Discovery**: The Agent SDK's `tool()` helper expects return values with `content: [{ type: "text", text: string }]` format (MCP CallToolResult).
+
+### v0 / Phase 2 / Task 2.7 — AgentManager
+- **Action**: Created `lib/process/agent-manager.ts`. Wraps SDK `query()` with spawn, cancel, resume, streamOutput. Maps model shortnames (sonnet/opus/haiku) to full model IDs. Consumes AsyncGenerator in background loop. Broadcasts to SSE subscribers. Session ID capture from messages. Turn counting. DB status updates throughout lifecycle. Uses `permissionMode: 'bypassPermissions'` + `allowDangerouslySkipPermissions: true`.
+- **Outcome**: Full agent lifecycle management with streaming and resume.
+- **Discovery**: Agent SDK requires `allowDangerouslySkipPermissions: true` in addition to `permissionMode: 'bypassPermissions'`.
+
+### v0 / Phase 2 / Task 2.8 — Output Accumulator
+- **Action**: Created `lib/process/output-accumulator.ts`. Batches SDKMessage writes to DB every 5 seconds or 50 messages. Merges with existing output JSON array. Final flush on stop.
+- **Outcome**: Prevents per-token DB writes during agent streaming.
+- **Discovery**: None.
+
+### v0 / Phase 2 / Task 2.9 — Agent API Routes
+- **Action**: Rewrote `app/api/agents/route.ts` with GET (list, filter by projectId/status) and POST (spawn with Zod validation). Created `app/api/agents/[id]/route.ts` (GET status, DELETE cancel). Created `app/api/agents/[id]/stream/route.ts` (SSE endpoint). Created `app/api/agents/[id]/resume/route.ts` (POST resume).
+- **Outcome**: Full HTTP API for agent lifecycle.
+- **Discovery**: None.
+
+### v0 / Phase 2 / Task 2.10 — Background Process API Routes
+- **Action**: Created `app/api/processes/route.ts` (GET list, POST start). Created `app/api/processes/[id]/route.ts` (GET status with live augmentation, DELETE stop). Created `app/api/processes/[id]/output/route.ts` (GET ring buffer content).
+- **Outcome**: Full HTTP API for background process management.
+- **Discovery**: None.
+
+### v0 / Phase 2 / Task 2.11 — Agent Monitor UI
+- **Action**: Created `components/agent-card.tsx` (status badge, model, turns, cost, cancel/resume/view buttons). Created `components/agent-output.tsx` (SSE EventSource consumer with terminal-like display, auto-scroll). Created `components/process-status.tsx` (background process panel with log viewer). Rewrote `/agents` page with running/recent sections. Updated `/projects/[id]` page: enabled agents tab, added per-project agent list with AgentCard, ProcessStatusPanel, and AgentOutput. Added phase start/approve/reject/skip buttons to phases tab.
+- **Outcome**: Live agent monitoring UI with streaming output.
+- **Discovery**: None.
+
+### v0 / Phase 2 / Task 2.12 — Orchestrator
+- **Action**: Created `lib/services/orchestrator.ts`. Phase flow: start (spawn agent with phase-specific prompt) → active → review → approve/reject/skip. Builds agent prompts from phase info + project context. Reads config from `process_configs` table (per-project or global defaults). Methods: startPhase, handlePhaseAction, markPhaseForReview, stopPhase.
+- **Outcome**: Phase sequencing with approval gates.
+- **Discovery**: None.
+
+### v0 / Phase 2 / Task 2.13 — Electron Cleanup
+- **Action**: Updated `electron/main.ts` before-quit handler. Stores Next.js server port in variable. On quit: sends POST to `/api/processes/shutdown` endpoint (8s timeout) then kills Next.js process. Created `app/api/processes/shutdown/route.ts` that calls AgentManager.cancel on all agents, BackgroundProcessManager.stopAll, and ProcessRegistry.shutdownAll.
+- **Outcome**: Clean shutdown of all managed processes on app quit.
+- **Discovery**: ChildProcess doesn't expose `.env` — need to store port separately.
+
+### v0 / Phase 2 / Testing — 37 new tests (92 total)
+- **Action**: Created `ring-buffer.test.ts` (8 tests: store/retrieve, wrapping, getLast, clear, high volume, timestamps). Created `process-registry.test.ts` (12 tests: register/unregister, getByProject/getByType, concurrency limits, events, shutdownAll). Created `schema.test.ts` (7 tests: agent_runs CRUD, nullable phaseId, cost tracking, filtering, background_processes, process_configs, deploy_events version_label). Created `orchestrator.test.ts` (5 tests: approve, approve with next phase, reject, skip, markPhaseForReview). Created `output-accumulator.test.ts` (4 tests: accumulate, threshold flush, interval flush, stop).
+- **Outcome**: 92 tests passing (55 Phase 1 + 37 Phase 2).
+- **Discovery**: Zod v4 mock factory cannot use `require()` — must use `vi.importActual()`.
+
+### v0 / Phase 2 / Additional — StatusBadge updates
+- **Action**: Added status styles for `cancelled`, `starting`, `stopped`, `review`, `feedback` to StatusBadge component.
+- **Outcome**: All TAXONOMY.md statuses now have visual representation.
+- **Discovery**: None.
+
+### v0 / Phase 2 — Complete
+- **Exit Criteria Met**:
+  - ✅ HQ spawns Claude agents via SDK, streams output to UI in real-time
+  - ✅ Background processes (dev server, test watcher, build watcher) managed with ring-buffered output
+  - ✅ Agents pull background output via MCP tools (5 tools in HQ MCP Server)
+  - ✅ User approves phase transitions (approve/reject/skip gates)
+  - ✅ All processes cleaned up on app quit (shutdown endpoint + Electron before-quit)
+  - ✅ Agent runs recorded in DB with session ID, cost, turns, output
+  - ✅ 92 tests passing
+- **Phase Feedback**:
+  - ARCH.md still accurate — all component boundaries match PLAN.md design.
+  - Zod v4 difference (`.issues` vs `.errors`) is minor — no doc update needed.
+  - Agent SDK requires `allowDangerouslySkipPermissions: true` alongside `permissionMode: 'bypassPermissions'` — confirmed in SDK docs.
+  - No orphaned TODOs or undocumented decisions.
+  - PLAN.md remaining phases (3-5) still accurate — no scope changes discovered.
+
+### v0 / Phase 2 / Post-Complete — Smoke test failures found and fixed
+- **Action**: User reported "Generate Docs" button does nothing. Root cause analysis found two bugs:
+  1. **`lucide-react` breaks client hydration**: Dependency was installed but a stale pnpm symlink in `apps/hq/node_modules/` caused Turbopack to fail client bundle compilation. React never hydrated, so all button click handlers were inert. Unit tests (Vitest/JSDOM) and typecheck both passed because they resolve modules differently than Turbopack.
+  2. **Missing `ANTHROPIC_API_KEY` fails silently**: The generate endpoint threw inside an SSE stream. The client parsed the error event but only displayed it while `generating` was true — the error flashed for one render then vanished when `generating` was set to `false`.
+- **Fixes applied**:
+  - Removed stale app-level symlink, cleared `.next` cache
+  - Added pre-flight API key check in generate route (returns 500 JSON before starting SSE)
+  - Added `res.ok` check in client-side `handleGenerate`
+  - Added proper SSE error event detection (tracks `event: error` line, captures next `data:` as error)
+  - Added persistent `genError` state with visible error banner in UI
+- **Outcome**: Error path now surfaces clearly. Button click either shows progress or a visible error.
+- **Discovery**: **Unit tests with mocked dependencies are necessary but not sufficient.** Both bugs were invisible to Vitest (92 tests passed) and TypeScript (typecheck clean) but immediately visible to any user clicking a button. The Phase Feedback checklist did not require actually running the app.

@@ -2,15 +2,20 @@
 
 ## Current State
 
-Phase 1 complete. Project creation working end-to-end:
-- Electron + Next.js app with sidebar navigation, dashboard, project list
-- SQLite database with schema and auto-creation on fresh install
-- Project CRUD API with Zod validation
-- Doc Generator (Claude API) with SSE streaming progress
-- Workspace creation (git init, CLAUDE.md, 5 workflow docs)
-- Project detail view with tabbed doc viewer
-- 55-test suite (validations, API routes, services, components)
-- `.dmg` build pipeline with native module rebuild and auto version bumping
+Phase 2 complete. Agent execution working end-to-end:
+- Everything from Phase 1 (project creation, docs, workspace, dashboard)
+- Claude Agent SDK integration (`query()` with streaming, abort, resume, MCP injection)
+- Three-layer process management: ProcessRegistry → AgentManager + BackgroundProcessManager
+- In-process HQ MCP Server (5 tools: get_process_output, get_dev_server_url, get_process_status, start_process, stop_process)
+- Background process management with RingBuffer (500-line circular output capture)
+- Output accumulator (batched DB writes every 5s or 50 messages)
+- Agent API routes: spawn, cancel, stream (SSE), resume
+- Background process API routes: start, stop, status, output
+- Agent Monitor UI with live SSE output, cancel/resume controls
+- Project detail agents tab with per-project agent list and background process panel
+- Orchestrator with phase progression and user approval gates (approve/reject/skip)
+- Electron before-quit cleanup (shutdown endpoint for ProcessRegistry)
+- 92-test suite (55 Phase 1 + 37 Phase 2: ring buffer, process registry, schema, orchestrator, output accumulator)
 
 ## Future State
 
@@ -129,7 +134,7 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ---
 
-### Phase 2 — Agent Execution
+### Phase 2 — Agent Execution ✅
 
 **From**: Projects exist with generated docs but nothing is built
 **To**: HQ spawns multiple Claude agents per project, streams output to UI, manages background processes (dev servers, test watchers, build watchers), records everything in DB
