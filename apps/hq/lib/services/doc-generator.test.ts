@@ -19,11 +19,11 @@ describe("generateProjectDocs", () => {
     mockCreate.mockReset()
   })
 
-  it("throws when ANTHROPIC_API_KEY is not set", async () => {
+  it("throws when no API key is available", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "")
     await expect(
       generateProjectDocs("Test", "A test prompt for doc generation"),
-    ).rejects.toThrow("ANTHROPIC_API_KEY")
+    ).rejects.toThrow("No API key available")
   })
 
   it("generates all 5 docs in the correct order", async () => {

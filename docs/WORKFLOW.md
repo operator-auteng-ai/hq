@@ -226,17 +226,30 @@ Unit tests verify components in isolation. Smoke tests verify the app actually w
 
 **When**: After all tasks in a phase are implemented and unit tests pass, but BEFORE writing the phase completion log entry.
 
-**Process**:
-1. Start the dev server (`pnpm dev`) and confirm it compiles without errors
-2. Load every new or modified page in the browser — verify they render (no blank screens, no hydration failures)
-3. Click every new button/action added in the phase — verify it produces a visible response (loading state, success, or a clear error message)
-4. Check the browser console for JavaScript errors
-5. For any feature requiring environment variables or external services, verify the error path explicitly: remove/omit the config and confirm the UI shows a clear, actionable error
-6. For API routes, `curl` each new endpoint and verify the response format matches what the client expects
+**Automated smoke tests** (Playwright):
+```bash
+pnpm --filter auteng-hq test:e2e        # headless (CI / phase gate)
+pnpm --filter auteng-hq test:e2e:headed # visible browser (debugging)
+```
+
+The Playwright suite (`apps/hq/e2e/smoke.spec.ts`) starts the dev server automatically and verifies:
+- Every page renders without JS errors (hydration works)
+- Sidebar navigation links perform client-side routing
+- Settings page: save, persist across reload, remove API key
+- Generate Docs: shows clear error when no key configured; shows auth error with invalid key
+- Browser console is free of uncaught exceptions
+
+**When to run**: After unit tests pass, before writing the phase completion log entry. All Playwright tests must pass.
+
+**Adding new smoke tests**: When you add a new page or user-facing flow, add a corresponding test in `e2e/smoke.spec.ts`. At minimum: page renders, no JS errors, primary action produces a visible response.
+
+**Manual checks** (not yet automated):
+- Feature works in the Electron app (not just browser dev mode)
+- Visual appearance matches design intent (layout, spacing, colors)
 
 **Why this exists**: Unit tests with mocked dependencies can pass while the actual app is broken. Module resolution failures, missing env vars, broken SSE parsing, and unhydrated React pages are invisible to Vitest but immediately visible to a user. If a smoke test would have caught the bug, the phase is not done.
 
-**Failure mode**: If a smoke test reveals a bug, fix it, add a regression unit test, then re-run the smoke test. Do not mark the phase complete until the smoke test passes.
+**Failure mode**: If a smoke test reveals a bug, fix it, add a regression unit test AND a Playwright test, then re-run. Do not mark the phase complete until both test suites pass.
 
 ## Cross-Document Rules
 

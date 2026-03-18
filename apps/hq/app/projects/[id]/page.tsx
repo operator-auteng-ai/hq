@@ -298,7 +298,7 @@ export default function ProjectDetailPage({
       )}
 
       {!generating && genError && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div data-testid="gen-error" className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {genError}
         </div>
       )}

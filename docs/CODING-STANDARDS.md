@@ -76,8 +76,8 @@ See [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) for the full component registry, toke
 
 - Unit tests for business logic (orchestrator, agent manager, doc generator)
 - Integration tests for agent spawning and DB operations
-- E2E tests for critical flows (create project, run agent, deploy)
-- Test framework: Vitest
+- E2E smoke tests via Playwright (`pnpm --filter auteng-hq test:e2e`) — pages render, buttons work, errors surface
+- Test frameworks: Vitest (unit/integration), Playwright (E2E smoke)
 - Target: critical paths covered, not 100% line coverage
 - **Smoke tests are mandatory** — unit tests with mocked deps are insufficient. See WORKFLOW.md Smoke Test Protocol
 - Every user-facing error path must be tested (missing env vars, network failures, invalid input)

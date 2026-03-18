@@ -303,6 +303,29 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ---
 
+### Phase 2.99 — Secure API Key Management
+
+**From**: API key required but only configurable via env var (unusable in distributed desktop app)
+**To**: Users enter their API key in Settings, encrypted at rest via OS keychain master key
+
+**Detailed design**: [docs/v0/ph2/99_SECURE_API_KEYS_DETAILED_DESIGN.md](./v0/ph2/99_SECURE_API_KEYS_DETAILED_DESIGN.md)
+
+| Task | Description |
+|------|-------------|
+| 2.99.1 | `app_settings` table (key/value + encrypted flag) in schema + SCHEMA_SQL |
+| 2.99.2 | `lib/services/secrets.ts`: AES-256-GCM encrypt/decrypt using master key, settings CRUD, `getAnthropicApiKey()` with env fallback |
+| 2.99.3 | Electron master key: generate on first launch, encrypt with `safeStorage`, store in `master.key` file, pass as `HQ_MASTER_KEY` env to Next.js |
+| 2.99.4 | `/api/settings` route: GET (masked key + status), PUT (validate + save via secrets service) |
+| 2.99.5 | Settings page UI: API key input with show/hide, save button, configured/unconfigured badge, encryption status |
+| 2.99.6 | Update `doc-generator.ts` to accept `apiKey` param; update generate endpoint to read from secrets service |
+| 2.99.7 | Tests: encrypt/decrypt roundtrip, settings CRUD, env fallback, API route, generate endpoint integration |
+
+**Exit Criteria**: User enters API key in Settings → key encrypted in SQLite → Generate Docs uses saved key → clear error if no key configured → Electron build encrypts via OS keychain. Dev mode falls back to env var.
+
+**Feedback**: Validate encryption works across macOS/Windows/Linux. Update ARCH.md with secrets architecture.
+
+---
+
 ### Phase 3 — Deployment
 
 **From**: Code built by agents, sitting locally
@@ -411,9 +434,10 @@ apps/hq/
 
 ```mermaid
 graph TD
-    P0["Phase 0: Skeleton ✅"] --> P1["Phase 1: Project Creation"]
-    P1 --> P2["Phase 2: Agent Execution"]
-    P2 --> P3["Phase 3: Deployment"]
+    P0["Phase 0: Skeleton ✅"] --> P1["Phase 1: Project Creation ✅"]
+    P1 --> P2["Phase 2: Agent Execution ✅"]
+    P2 --> P299["Phase 2.99: Secure API Keys"]
+    P299 --> P3["Phase 3: Deployment"]
     P3 --> P4["Phase 4: Monitoring"]
     P2 --> P5["Phase 5: Multi-Project"]
 ```

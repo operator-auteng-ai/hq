@@ -118,13 +118,14 @@ export async function generateProjectDocs(
   projectName: string,
   prompt: string,
   model: ModelKey = "sonnet",
+  apiKey?: string,
 ): Promise<GeneratedDocs> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY environment variable is required")
+  const key = apiKey || process.env.ANTHROPIC_API_KEY
+  if (!key) {
+    throw new Error("No API key available. Configure your Anthropic key in Settings.")
   }
 
-  const client = new Anthropic({ apiKey })
+  const client = new Anthropic({ apiKey: key })
   const modelId = MODEL_MAP[model]
   const docs: Partial<GeneratedDocs> = {}
 

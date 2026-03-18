@@ -3,6 +3,7 @@ import { getDb, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { generateProjectDocs } from "@/lib/services/doc-generator"
 import { createWorkspace } from "@/lib/services/workspace"
+import { getAnthropicApiKey } from "@/lib/services/secrets"
 
 type RouteParams = { params: Promise<{ id: string }> }
 
@@ -24,10 +25,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const model = (body.model as "sonnet" | "opus" | "haiku") || "sonnet"
 
   // Pre-flight check: verify API key exists before starting generation
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const apiKey = getAnthropicApiKey()
+  if (!apiKey) {
     return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY is not configured. Add it to apps/hq/.env.local" },
-      { status: 500 },
+      { error: "No API key configured. Add your Anthropic key in Settings." },
+      { status: 400 },
     )
   }
 
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       try {
         send("status", { step: "generating", message: "Generating workflow docs..." })
 
-        const docs = await generateProjectDocs(project.name, project.prompt, model)
+        const docs = await generateProjectDocs(project.name, project.prompt, model, apiKey)
 
         send("status", { step: "workspace", message: "Creating project workspace..." })
 

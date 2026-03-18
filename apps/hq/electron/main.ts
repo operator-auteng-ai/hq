@@ -1,7 +1,8 @@
-import { app, BrowserWindow, screen } from "electron"
+import { app, BrowserWindow, safeStorage, screen } from "electron"
 import path from "node:path"
 import net from "node:net"
 import fs from "node:fs"
+import crypto from "node:crypto"
 import { ChildProcess, fork } from "node:child_process"
 
 // ── Logging ──────────────────────────────────────────────────────────────
@@ -69,6 +70,34 @@ async function createWindow(url: string) {
   })
 }
 
+function loadOrCreateMasterKey(dataDir: string): string | null {
+  const keyFile = path.join(dataDir, "master.key")
+
+  if (!safeStorage.isEncryptionAvailable()) {
+    log("WARNING: safeStorage encryption not available — secrets will not be encrypted")
+    return null
+  }
+
+  try {
+    if (fs.existsSync(keyFile)) {
+      const encrypted = fs.readFileSync(keyFile)
+      const decrypted = safeStorage.decryptString(encrypted)
+      log("Master key loaded from", keyFile)
+      return decrypted
+    }
+
+    // First launch: generate a new master key
+    const masterKey = crypto.randomBytes(32).toString("hex")
+    const encrypted = safeStorage.encryptString(masterKey)
+    fs.writeFileSync(keyFile, encrypted, { mode: 0o600 })
+    log("Master key generated and saved to", keyFile)
+    return masterKey
+  } catch (err) {
+    log("ERROR: Failed to load/create master key:", err instanceof Error ? err.message : String(err))
+    return null
+  }
+}
+
 async function startNextStandaloneServer(): Promise<string> {
   const port = await getRandomPort()
   // extraResources land at process.resourcesPath, not inside asar
@@ -88,15 +117,21 @@ async function startNextStandaloneServer(): Promise<string> {
   const dataDir = path.join(app.getPath("userData"), "data")
   fs.mkdirSync(dataDir, { recursive: true })
 
+  // Load or create master key for secret encryption
+  const masterKey = loadOrCreateMasterKey(dataDir)
+
   return new Promise((resolve, reject) => {
+    const childEnv = {
+      ...process.env,
+      PORT: String(port),
+      HOSTNAME: "localhost",
+      NODE_ENV: "production" as const,
+      HQ_DATA_DIR: dataDir,
+      ...(masterKey ? { HQ_MASTER_KEY: masterKey } : {}),
+    }
+
     nextServerProcess = fork(serverPath, [], {
-      env: {
-        ...process.env,
-        PORT: String(port),
-        HOSTNAME: "localhost",
-        NODE_ENV: "production",
-        HQ_DATA_DIR: dataDir,
-      },
+      env: childEnv,
       cwd: appBase,
       silent: true, // capture stdout/stderr
     })

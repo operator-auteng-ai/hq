@@ -85,6 +85,15 @@ export const processConfigs = sqliteTable("process_configs", {
     .$defaultFn(() => new Date().toISOString()),
 })
 
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  encrypted: integer("encrypted").notNull().default(0),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
 export const kpiSnapshots = sqliteTable("kpi_snapshots", {
   id: text("id").primaryKey(),
   projectId: text("project_id")
