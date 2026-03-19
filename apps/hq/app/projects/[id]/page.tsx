@@ -79,6 +79,7 @@ export default function ProjectDetailPage({
   const [phases, setPhases] = useState<Phase[]>([])
   const [agents, setAgents] = useState<AgentRun[]>([])
   const [viewingOutput, setViewingOutput] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("docs")
 
   useEffect(() => {
     loadProject()
@@ -128,22 +129,31 @@ export default function ProjectDetailPage({
     }
   }
 
+  const [startingPhase, setStartingPhase] = useState<number | null>(null)
+
   async function handleStartPhase(phaseNumber: string) {
+    const num = parseInt(phaseNumber, 10)
     setGenError("")
-    const res = await fetch("/api/agents", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: id, prompt: `Implement phase`, phaseNumber: parseInt(phaseNumber, 10) }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Failed to start agent" }))
-      setGenError(err.error || `Agent spawn failed (${res.status})`)
-      return
+    setStartingPhase(num)
+    try {
+      const res = await fetch(`/api/projects/${id}/phases`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phaseNumber: num, action: "start" }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to start phase" }))
+        setGenError(err.error || `Phase start failed (${res.status})`)
+        return
+      }
+      const data = await res.json()
+      setViewingOutput(data.agentId)
+      setActiveTab("agents")
+      loadAgents()
+      loadPhases()
+    } finally {
+      setStartingPhase(null)
     }
-    const data = await res.json()
-    setViewingOutput(data.agentId)
-    loadAgents()
-    loadPhases()
   }
 
   async function handlePhaseAction(phaseNumber: string, action: string) {
@@ -330,7 +340,7 @@ export default function ProjectDetailPage({
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="docs">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="docs">Docs</TabsTrigger>
           <TabsTrigger value="phases">Phases</TabsTrigger>
@@ -389,10 +399,20 @@ export default function ProjectDetailPage({
                         <Button
                           size="sm"
                           variant="outline"
+                          disabled={startingPhase === phase.phaseNumber}
                           onClick={() => handleStartPhase(String(phase.phaseNumber))}
                         >
-                          <PlayIcon className="mr-1 h-3 w-3" />
-                          Start
+                          {startingPhase === phase.phaseNumber ? (
+                            <>
+                              <Loader2Icon className="mr-1 h-3 w-3 animate-spin" />
+                              Starting...
+                            </>
+                          ) : (
+                            <>
+                              <PlayIcon className="mr-1 h-3 w-3" />
+                              Start
+                            </>
+                          )}
                         </Button>
                       )}
                       {phase.status === "review" && (
@@ -430,13 +450,6 @@ export default function ProjectDetailPage({
         </TabsContent>
 
         <TabsContent value="agents" className="mt-4 space-y-4">
-          {viewingOutput && (
-            <AgentOutput
-              agentId={viewingOutput}
-              onClose={() => setViewingOutput(null)}
-            />
-          )}
-
           <ProcessStatusPanel projectId={id} />
 
           {agents.length === 0 ? (
@@ -451,13 +464,24 @@ export default function ProjectDetailPage({
           ) : (
             <div className="space-y-2">
               {agents.map((agent) => (
-                <AgentCard
-                  key={agent.id}
-                  agent={agent}
-                  onCancel={handleCancelAgent}
-                  onResume={handleResumeAgent}
-                  onViewOutput={setViewingOutput}
-                />
+                <div key={agent.id}>
+                  <AgentCard
+                    agent={agent}
+                    onCancel={handleCancelAgent}
+                    onResume={handleResumeAgent}
+                    onViewOutput={(id) =>
+                      setViewingOutput((prev) => (prev === id ? null : id))
+                    }
+                  />
+                  {viewingOutput === agent.id && (
+                    <div className="mt-1">
+                      <AgentOutput
+                        agentId={agent.id}
+                        onClose={() => setViewingOutput(null)}
+                      />
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

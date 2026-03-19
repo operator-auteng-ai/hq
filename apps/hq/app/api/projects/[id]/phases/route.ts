@@ -69,6 +69,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { getOrchestrator } = await import("@/lib/services/orchestrator")
   const orchestrator = getOrchestrator()
 
+  if (action === "start") {
+    try {
+      const agentId = await orchestrator.startPhase(id, phaseNumber)
+      return NextResponse.json({ agentId })
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Failed to start phase" },
+        { status: 500 },
+      )
+    }
+  }
+
   const result = await orchestrator.handlePhaseAction(
     id,
     phaseNumber,

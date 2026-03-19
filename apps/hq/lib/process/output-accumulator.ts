@@ -21,6 +21,30 @@ export class OutputAccumulator {
     }
   }
 
+  /** Return all messages: flushed (from DB) + in-flight buffer */
+  getBuffered(): unknown[] {
+    try {
+      const db = getDb()
+      const existing = db
+        .select({ output: schema.agentRuns.output })
+        .from(schema.agentRuns)
+        .where(eq(schema.agentRuns.id, this.agentId))
+        .get()
+
+      let all: unknown[] = []
+      if (existing?.output) {
+        try {
+          all = JSON.parse(existing.output)
+        } catch {
+          all = []
+        }
+      }
+      return [...all, ...this.buffer]
+    } catch {
+      return [...this.buffer]
+    }
+  }
+
   flush(): void {
     if (this.buffer.length === 0) return
 

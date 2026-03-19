@@ -4,6 +4,7 @@ import { getAgentManager } from "@/lib/process/agent-manager"
 import { getBackgroundProcessManager } from "@/lib/process/background-process-manager"
 import { parsePhasesFromPlan, type ParsedPhase } from "@/lib/services/phase-parser"
 import type { AgentConfig } from "@/lib/process/types"
+import { getAnthropicApiKey } from "@/lib/services/secrets"
 import fs from "node:fs"
 import path from "node:path"
 
@@ -41,6 +42,10 @@ export class Orchestrator {
     // Get config from process_configs or use defaults
     const config = await this.getProjectConfig(projectId)
 
+    // Get API key
+    const apiKey = getAnthropicApiKey()
+    if (!apiKey) throw new Error("No API key configured. Add your Anthropic key in Settings.")
+
     // Spawn agent
     const agentManager = getAgentManager()
     const { v4: uuidv4 } = await import("uuid")
@@ -60,7 +65,11 @@ export class Orchestrator {
       })
       .run()
 
-    await agentManager.spawn(agentId, projectId, prompt, config)
+    await agentManager.spawn(agentId, projectId, prompt, {
+      ...config,
+      apiKey,
+      phaseLabel: `Phase ${phaseNumber}`,
+    })
 
     return agentId
   }

@@ -91,21 +91,31 @@ test.describe("Error paths: Agent spawn error handling", () => {
 
     await page.goto(`/projects/${project.id}`)
 
-    // Mock the phases endpoint to return a fake phase
-    await page.route(`**/api/projects/${project.id}/phases`, (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            phaseNumber: 1,
-            name: "Test Phase",
-            description: "A test phase",
-            exitCriteria: null,
-            status: "pending",
-          },
-        ]),
-      })
+    // Mock the phases endpoint: GET returns a fake phase, PATCH (start) returns error
+    await page.route(`**/api/projects/${project.id}/phases`, (route, request) => {
+      if (request.method() === "GET") {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              phaseNumber: 1,
+              name: "Test Phase",
+              description: "A test phase",
+              exitCriteria: null,
+              status: "pending",
+            },
+          ]),
+        })
+      } else if (request.method() === "PATCH") {
+        route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Test error: agent spawn failed" }),
+        })
+      } else {
+        route.continue()
+      }
     })
 
     // Mock the project GET to include a workspace path (so hasDocs=true and Start button shows)
@@ -124,19 +134,6 @@ test.describe("Error paths: Agent spawn error handling", () => {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }),
-        })
-      } else {
-        route.continue()
-      }
-    })
-
-    // Mock the agents spawn endpoint to return an error
-    await page.route("**/api/agents", (route, request) => {
-      if (request.method() === "POST") {
-        route.fulfill({
-          status: 400,
-          contentType: "application/json",
-          body: JSON.stringify({ error: "Test error: agent spawn failed" }),
         })
       } else {
         route.continue()

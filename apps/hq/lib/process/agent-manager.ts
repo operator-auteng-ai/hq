@@ -329,19 +329,53 @@ export class AgentManager {
     return new ReadableStream<Uint8Array>({
       start: (controller) => {
         const sub: StreamSubscriber = { controller, closed: false }
-        const subs = this.subscribers.get(agentId) ?? []
-        subs.push(sub)
-        this.subscribers.set(agentId, subs)
+        const encoder = new TextEncoder()
 
-        // If agent is already done, close immediately
-        if (!this.agents.has(agentId)) {
-          const encoder = new TextEncoder()
+        // If agent is still running, subscribe for live updates
+        if (this.agents.has(agentId)) {
+          // Replay any messages already accumulated in the buffer
+          const accumulator = this.accumulators.get(agentId)
+          if (accumulator) {
+            const buffered = accumulator.getBuffered()
+            for (const msg of buffered) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(msg)}\n\n`))
+            }
+          }
+
+          const subs = this.subscribers.get(agentId) ?? []
+          subs.push(sub)
+          this.subscribers.set(agentId, subs)
+          return
+        }
+
+        // Agent is done — replay stored messages from DB
+        try {
+          const db = getDb()
+          const run = db
+            .select({ output: schema.agentRuns.output, status: schema.agentRuns.status })
+            .from(schema.agentRuns)
+            .where(eq(schema.agentRuns.id, agentId))
+            .get()
+
+          if (run?.output) {
+            const messages = JSON.parse(run.output) as unknown[]
+            for (const msg of messages) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(msg)}\n\n`))
+            }
+          }
+
+          const finalStatus = run?.status ?? "not_running"
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "done", status: finalStatus })}\n\n`),
+          )
+        } catch (err) {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ type: "done", status: "not_running" })}\n\n`),
           )
-          controller.close()
-          sub.closed = true
         }
+
+        controller.close()
+        sub.closed = true
       },
       cancel: () => {
         // Clean up subscriber on client disconnect
