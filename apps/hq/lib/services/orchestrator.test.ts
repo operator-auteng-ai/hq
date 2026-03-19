@@ -1,10 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { createTestDb, seedProject } from "@/lib/test-helpers"
 import * as schema from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 
 // Store reference to test DB for mock
 let testDb: ReturnType<typeof createTestDb>
+let tmpDir: string
 
 vi.mock("@/lib/db", async () => {
   const actualSchema = await vi.importActual<typeof import("@/lib/db/schema")>(
@@ -34,163 +37,114 @@ vi.mock("uuid", () => ({
   v4: () => "mock-uuid-1234",
 }))
 
+const PLAN_MD = `# Plan
+
+### Phase 1: Skeleton
+**From**: Nothing
+**To**: Basic app
+
+**Exit Criteria**:
+- App launches
+- Tests pass
+
+### Phase 2: Features
+**From**: Skeleton
+**To**: Full features
+
+**Exit Criteria**:
+- All features work
+`
+
+function setupWorkspace(workspacePath: string) {
+  const docsDir = path.join(workspacePath, "docs")
+  fs.mkdirSync(docsDir, { recursive: true })
+  fs.writeFileSync(path.join(docsDir, "PLAN.md"), PLAN_MD)
+}
+
 describe("Orchestrator", () => {
   beforeEach(() => {
     testDb = createTestDb()
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-test-"))
     vi.clearAllMocks()
   })
 
-  it("handlePhaseAction approve marks phase completed", async () => {
-    const project = seedProject(testDb)
-
-    testDb
-      .insert(schema.phases)
-      .values({
-        id: "phase-1",
-        projectId: project.id,
-        phaseNumber: 1,
-        name: "Skeleton",
-        status: "review",
-      })
-      .run()
-
-    const { Orchestrator } = await import("./orchestrator")
-    const orch = new Orchestrator()
-
-    const result = await orch.handlePhaseAction(project.id, "phase-1", "approve")
-
-    const phase = testDb
-      .select()
-      .from(schema.phases)
-      .where(eq(schema.phases.id, "phase-1"))
-      .get()
-
-    expect(phase!.status).toBe("completed")
-    expect(phase!.completedAt).toBeDefined()
-    expect(result.nextPhaseId).toBeUndefined() // No next phase
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  it("handlePhaseAction approve returns next phase if exists", async () => {
-    const project = seedProject(testDb)
-
-    testDb
-      .insert(schema.phases)
-      .values([
-        {
-          id: "phase-1",
-          projectId: project.id,
-          phaseNumber: 1,
-          name: "Skeleton",
-          status: "review",
-        },
-        {
-          id: "phase-2",
-          projectId: project.id,
-          phaseNumber: 2,
-          name: "Features",
-          status: "pending",
-        },
-      ])
-      .run()
+  it("handlePhaseAction approve logs to PLAN_PROGRESS_LOG.md", async () => {
+    const workspacePath = path.join(tmpDir, "project")
+    setupWorkspace(workspacePath)
+    const project = seedProject(testDb, { workspacePath })
 
     const { Orchestrator } = await import("./orchestrator")
     const orch = new Orchestrator()
 
-    const result = await orch.handlePhaseAction(project.id, "phase-1", "approve")
-    expect(result.nextPhaseId).toBe("phase-2")
+    const result = await orch.handlePhaseAction(project.id, 1, "approve")
+
+    const logPath = path.join(workspacePath, "docs", "PLAN_PROGRESS_LOG.md")
+    expect(fs.existsSync(logPath)).toBe(true)
+    const log = fs.readFileSync(logPath, "utf-8")
+    expect(log).toContain("Phase 1 completed")
+    expect(log).toContain("Skeleton")
+    expect(result.nextPhaseNumber).toBe(2)
   })
 
-  it("handlePhaseAction reject resets phase to active", async () => {
-    const project = seedProject(testDb)
-
-    testDb
-      .insert(schema.phases)
-      .values({
-        id: "phase-1",
-        projectId: project.id,
-        phaseNumber: 1,
-        name: "Skeleton",
-        status: "review",
-      })
-      .run()
+  it("handlePhaseAction approve with no next phase returns undefined", async () => {
+    const workspacePath = path.join(tmpDir, "project2")
+    setupWorkspace(workspacePath)
+    const project = seedProject(testDb, { workspacePath })
 
     const { Orchestrator } = await import("./orchestrator")
     const orch = new Orchestrator()
 
-    await orch.handlePhaseAction(project.id, "phase-1", "reject")
-
-    const phase = testDb
-      .select()
-      .from(schema.phases)
-      .where(eq(schema.phases.id, "phase-1"))
-      .get()
-
-    expect(phase!.status).toBe("active")
+    const result = await orch.handlePhaseAction(project.id, 2, "approve")
+    expect(result.nextPhaseNumber).toBeUndefined()
   })
 
-  it("handlePhaseAction skip marks completed and advances", async () => {
-    const project = seedProject(testDb)
-
-    testDb
-      .insert(schema.phases)
-      .values([
-        {
-          id: "phase-1",
-          projectId: project.id,
-          phaseNumber: 1,
-          name: "Skeleton",
-          status: "review",
-        },
-        {
-          id: "phase-2",
-          projectId: project.id,
-          phaseNumber: 2,
-          name: "Features",
-          status: "pending",
-        },
-      ])
-      .run()
+  it("handlePhaseAction reject logs rejection", async () => {
+    const workspacePath = path.join(tmpDir, "project3")
+    setupWorkspace(workspacePath)
+    const project = seedProject(testDb, { workspacePath })
 
     const { Orchestrator } = await import("./orchestrator")
     const orch = new Orchestrator()
 
-    const result = await orch.handlePhaseAction(project.id, "phase-1", "skip")
+    await orch.handlePhaseAction(project.id, 1, "reject")
 
-    const phase = testDb
-      .select()
-      .from(schema.phases)
-      .where(eq(schema.phases.id, "phase-1"))
-      .get()
-
-    expect(phase!.status).toBe("completed")
-    expect(result.nextPhaseId).toBe("phase-2")
+    const logPath = path.join(workspacePath, "docs", "PLAN_PROGRESS_LOG.md")
+    const log = fs.readFileSync(logPath, "utf-8")
+    expect(log).toContain("Phase 1 rejected")
   })
 
-  it("markPhaseForReview sets status to review", async () => {
-    const project = seedProject(testDb)
-
-    testDb
-      .insert(schema.phases)
-      .values({
-        id: "phase-1",
-        projectId: project.id,
-        phaseNumber: 1,
-        name: "Skeleton",
-        status: "active",
-      })
-      .run()
+  it("handlePhaseAction skip logs and advances", async () => {
+    const workspacePath = path.join(tmpDir, "project4")
+    setupWorkspace(workspacePath)
+    const project = seedProject(testDb, { workspacePath })
 
     const { Orchestrator } = await import("./orchestrator")
     const orch = new Orchestrator()
 
-    await orch.markPhaseForReview("phase-1")
+    const result = await orch.handlePhaseAction(project.id, 1, "skip")
 
-    const phase = testDb
-      .select()
-      .from(schema.phases)
-      .where(eq(schema.phases.id, "phase-1"))
-      .get()
+    const logPath = path.join(workspacePath, "docs", "PLAN_PROGRESS_LOG.md")
+    const log = fs.readFileSync(logPath, "utf-8")
+    expect(log).toContain("Phase 1 skipped")
+    expect(result.nextPhaseNumber).toBe(2)
+  })
 
-    expect(phase!.status).toBe("review")
+  it("markPhaseForReview logs review status", async () => {
+    const workspacePath = path.join(tmpDir, "project5")
+    setupWorkspace(workspacePath)
+    const project = seedProject(testDb, { workspacePath })
+
+    const { Orchestrator } = await import("./orchestrator")
+    const orch = new Orchestrator()
+
+    await orch.markPhaseForReview(project.id, 1)
+
+    const logPath = path.join(workspacePath, "docs", "PLAN_PROGRESS_LOG.md")
+    const log = fs.readFileSync(logPath, "utf-8")
+    expect(log).toContain("Phase 1 pending review")
   })
 })

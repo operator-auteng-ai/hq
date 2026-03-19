@@ -41,7 +41,8 @@ export interface AgentConfig {
   model?: string
   maxTurns?: number
   maxBudgetUsd?: number
-  phaseId?: string
+  phaseLabel?: string
+  apiKey?: string
 }
 
 export interface AgentInstance extends ManagedProcess {

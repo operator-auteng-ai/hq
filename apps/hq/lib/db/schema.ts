@@ -15,25 +15,12 @@ export const projects = sqliteTable("projects", {
     .$defaultFn(() => new Date().toISOString()),
 })
 
-export const phases = sqliteTable("phases", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id),
-  phaseNumber: integer("phase_number").notNull(),
-  name: text("name").notNull(),
-  status: text("status").notNull().default("pending"),
-  exitCriteria: text("exit_criteria"),
-  startedAt: text("started_at"),
-  completedAt: text("completed_at"),
-})
-
 export const agentRuns = sqliteTable("agent_runs", {
   id: text("id").primaryKey(),
   projectId: text("project_id")
     .notNull()
     .references(() => projects.id),
-  phaseId: text("phase_id").references(() => phases.id),
+  phaseLabel: text("phase_label"),
   agentType: text("agent_type").notNull(),
   prompt: text("prompt").notNull(),
   command: text("command"),

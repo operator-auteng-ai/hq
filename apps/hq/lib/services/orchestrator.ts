@@ -2,24 +2,16 @@ import { eq } from "drizzle-orm"
 import { getDb, schema } from "@/lib/db"
 import { getAgentManager } from "@/lib/process/agent-manager"
 import { getBackgroundProcessManager } from "@/lib/process/background-process-manager"
+import { parsePhasesFromPlan, type ParsedPhase } from "@/lib/services/phase-parser"
 import type { AgentConfig } from "@/lib/process/types"
+import fs from "node:fs"
+import path from "node:path"
 
 export type PhaseAction = "approve" | "reject" | "skip"
 
 export class Orchestrator {
-  async startPhase(projectId: string, phaseId: string): Promise<string> {
+  async startPhase(projectId: string, phaseNumber: number): Promise<string> {
     const db = getDb()
-    const phase = db
-      .select()
-      .from(schema.phases)
-      .where(eq(schema.phases.id, phaseId))
-      .get()
-
-    if (!phase) throw new Error(`Phase ${phaseId} not found`)
-    if (phase.projectId !== projectId) {
-      throw new Error(`Phase ${phaseId} does not belong to project ${projectId}`)
-    }
-
     const project = db
       .select()
       .from(schema.projects)
@@ -27,12 +19,13 @@ export class Orchestrator {
       .get()
 
     if (!project) throw new Error(`Project ${projectId} not found`)
+    if (!project.workspacePath) throw new Error("Project has no workspace")
 
-    // Update phase status to active
-    db.update(schema.phases)
-      .set({ status: "active", startedAt: new Date().toISOString() })
-      .where(eq(schema.phases.id, phaseId))
-      .run()
+    const phase = this.getPhase(project.workspacePath, phaseNumber)
+    if (!phase) throw new Error(`Phase ${phaseNumber} not found in PLAN.md`)
+
+    // Log phase start to PLAN_PROGRESS_LOG.md
+    this.appendProgressLog(project.workspacePath, `Phase ${phaseNumber} started — "${phase.name}"`)
 
     // Update project status to building
     if (project.status !== "building") {
@@ -57,7 +50,7 @@ export class Orchestrator {
       .values({
         id: agentId,
         projectId,
-        phaseId,
+        phaseLabel: `Phase ${phaseNumber}`,
         agentType: "claude_code",
         prompt,
         status: "queued",
@@ -74,94 +67,93 @@ export class Orchestrator {
 
   async handlePhaseAction(
     projectId: string,
-    phaseId: string,
+    phaseNumber: number,
     action: PhaseAction,
-  ): Promise<{ nextPhaseId?: string }> {
+  ): Promise<{ nextPhaseNumber?: number }> {
     const db = getDb()
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get()
+
+    if (!project?.workspacePath) return {}
+
+    const phases = this.getPhases(project.workspacePath)
+    const current = phases.find((p) => p.phaseNumber === phaseNumber)
+    if (!current) return {}
 
     switch (action) {
       case "approve": {
-        db.update(schema.phases)
-          .set({ status: "completed", completedAt: new Date().toISOString() })
-          .where(eq(schema.phases.id, phaseId))
-          .run()
-
-        // Find next phase
-        const currentPhase = db
-          .select()
-          .from(schema.phases)
-          .where(eq(schema.phases.id, phaseId))
-          .get()
-
-        if (!currentPhase) return {}
-
-        const nextPhase = db
-          .select()
-          .from(schema.phases)
-          .where(eq(schema.phases.projectId, projectId))
-          .all()
-          .find((p) => p.phaseNumber === currentPhase.phaseNumber + 1)
-
-        return { nextPhaseId: nextPhase?.id }
+        this.appendProgressLog(project.workspacePath, `Phase ${phaseNumber} completed — "${current.name}" approved`)
+        const next = phases.find((p) => p.phaseNumber === phaseNumber + 1)
+        return { nextPhaseNumber: next?.phaseNumber }
       }
 
       case "reject": {
-        // Reset to active — user wants re-run
-        db.update(schema.phases)
-          .set({ status: "active" })
-          .where(eq(schema.phases.id, phaseId))
-          .run()
+        this.appendProgressLog(project.workspacePath, `Phase ${phaseNumber} rejected — "${current.name}" needs rework`)
         return {}
       }
 
       case "skip": {
-        db.update(schema.phases)
-          .set({ status: "completed", completedAt: new Date().toISOString() })
-          .where(eq(schema.phases.id, phaseId))
-          .run()
-
-        const currentPhase = db
-          .select()
-          .from(schema.phases)
-          .where(eq(schema.phases.id, phaseId))
-          .get()
-
-        if (!currentPhase) return {}
-
-        const nextPhase = db
-          .select()
-          .from(schema.phases)
-          .where(eq(schema.phases.projectId, projectId))
-          .all()
-          .find((p) => p.phaseNumber === currentPhase.phaseNumber + 1)
-
-        return { nextPhaseId: nextPhase?.id }
+        this.appendProgressLog(project.workspacePath, `Phase ${phaseNumber} skipped — "${current.name}"`)
+        const next = phases.find((p) => p.phaseNumber === phaseNumber + 1)
+        return { nextPhaseNumber: next?.phaseNumber }
       }
     }
   }
 
-  async markPhaseForReview(phaseId: string): Promise<void> {
+  async markPhaseForReview(projectId: string, phaseNumber: number): Promise<void> {
     const db = getDb()
-    db.update(schema.phases)
-      .set({ status: "review" })
-      .where(eq(schema.phases.id, phaseId))
-      .run()
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get()
+
+    if (!project?.workspacePath) return
+
+    this.appendProgressLog(project.workspacePath, `Phase ${phaseNumber} pending review — approval gate`)
   }
 
-  async stopPhase(projectId: string, phaseId: string): Promise<void> {
+  async stopPhase(projectId: string, phaseNumber: number): Promise<void> {
     const agentManager = getAgentManager()
     const bgManager = getBackgroundProcessManager()
 
-    // Cancel all agents for this project
+    // Cancel all agents for this project with matching phase label
+    const phaseLabel = `Phase ${phaseNumber}`
     const agents = agentManager.listByProject(projectId)
     for (const agent of agents) {
-      if (agent.config.phaseId === phaseId) {
+      if (agent.config.phaseLabel === phaseLabel) {
         agentManager.cancel(agent.id)
       }
     }
 
     // Stop background processes
     await bgManager.stopAllForProject(projectId)
+  }
+
+  private getPhases(workspacePath: string): ParsedPhase[] {
+    const planPath = path.join(workspacePath, "docs", "PLAN.md")
+    if (!fs.existsSync(planPath)) return []
+    const content = fs.readFileSync(planPath, "utf-8")
+    return parsePhasesFromPlan(content)
+  }
+
+  private getPhase(workspacePath: string, phaseNumber: number): ParsedPhase | undefined {
+    return this.getPhases(workspacePath).find((p) => p.phaseNumber === phaseNumber)
+  }
+
+  private appendProgressLog(workspacePath: string, entry: string): void {
+    const logPath = path.join(workspacePath, "docs", "PLAN_PROGRESS_LOG.md")
+    const timestamp = new Date().toISOString()
+    const line = `\n- [${timestamp}] ${entry}\n`
+
+    if (!fs.existsSync(logPath)) {
+      fs.writeFileSync(logPath, `# PLAN_PROGRESS_LOG\n${line}`)
+    } else {
+      fs.appendFileSync(logPath, line)
+    }
   }
 
   private buildPhasePrompt(

@@ -39,8 +39,8 @@ describe("GET /api/projects/:id", () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.name).toBe("Findable")
-    expect(data.phases).toBeDefined()
-    expect(data.phases).toEqual([])
+    // Phases are now served from /api/projects/:id/phases (parsed from PLAN.md)
+    expect(data.phases).toBeUndefined()
   })
 
   it("returns 404 for non-existent project", async () => {

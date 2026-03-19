@@ -75,6 +75,11 @@ export class AgentManager {
     }
     const model = modelMap[config.model ?? "sonnet"] ?? config.model ?? "claude-sonnet-4-6"
 
+    // Ensure API key is available for the SDK
+    if (config.apiKey) {
+      process.env.ANTHROPIC_API_KEY = config.apiKey
+    }
+
     // Spawn via SDK
     const agentQuery = query({
       prompt,
@@ -250,7 +255,7 @@ export class AgentManager {
       .values({
         id: newAgentId,
         projectId: run.projectId,
-        phaseId: run.phaseId,
+        phaseLabel: run.phaseLabel,
         agentType: run.agentType,
         prompt: `Resume: ${run.prompt}`,
         status: "queued",
@@ -277,7 +282,7 @@ export class AgentManager {
         model: run.model ?? undefined,
         maxTurns: run.maxTurns ?? undefined,
         maxBudgetUsd: run.budgetUsd ?? undefined,
-        phaseId: run.phaseId ?? undefined,
+        phaseLabel: run.phaseLabel ?? undefined,
       },
     }
 

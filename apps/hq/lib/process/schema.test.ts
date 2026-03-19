@@ -36,7 +36,7 @@ describe("Phase 2 Schema", () => {
       expect(run!.model).toBe("sonnet")
     })
 
-    it("allows nullable phaseId", () => {
+    it("allows nullable phaseLabel", () => {
       const db = createTestDb()
       const project = seedProject(db)
 
@@ -44,7 +44,7 @@ describe("Phase 2 Schema", () => {
         .values({
           id: "run-2",
           projectId: project.id,
-          phaseId: null,
+          phaseLabel: null,
           agentType: "claude_code",
           prompt: "Ad-hoc task",
           status: "queued",
@@ -58,7 +58,7 @@ describe("Phase 2 Schema", () => {
         .where(eq(schema.agentRuns.id, "run-2"))
         .get()
 
-      expect(run!.phaseId).toBeNull()
+      expect(run!.phaseLabel).toBeNull()
     })
 
     it("stores cost and turn tracking fields", () => {

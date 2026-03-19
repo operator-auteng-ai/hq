@@ -3,11 +3,13 @@ import { getDb, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
+import { getAnthropicApiKey } from "@/lib/services/secrets"
 
 const spawnAgentSchema = z.object({
   projectId: z.string().min(1),
   prompt: z.string().min(1),
-  phaseId: z.string().optional(),
+  phaseLabel: z.string().optional(),
+  phaseNumber: z.number().int().positive().optional(),
   model: z.string().optional(),
   maxTurns: z.number().int().positive().optional(),
   maxBudgetUsd: z.number().positive().optional(),
@@ -56,6 +58,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
+    // Pre-flight check: verify API key exists before spawning
+    const apiKey = getAnthropicApiKey()
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "No API key configured. Add your Anthropic key in Settings." },
+        { status: 400 },
+      )
+    }
+
     const agentId = uuidv4()
 
     // Create agent run record
@@ -63,7 +74,7 @@ export async function POST(request: Request) {
       .values({
         id: agentId,
         projectId: parsed.projectId,
-        phaseId: parsed.phaseId ?? null,
+        phaseLabel: parsed.phaseLabel ?? (parsed.phaseNumber ? `Phase ${parsed.phaseNumber}` : null),
         agentType: "claude_code",
         prompt: parsed.prompt,
         status: "queued",
@@ -81,7 +92,8 @@ export async function POST(request: Request) {
         model: parsed.model,
         maxTurns: parsed.maxTurns,
         maxBudgetUsd: parsed.maxBudgetUsd,
-        phaseId: parsed.phaseId,
+        phaseLabel: parsed.phaseLabel ?? (parsed.phaseNumber ? `Phase ${parsed.phaseNumber}` : undefined),
+        apiKey,
       })
       .catch((err: unknown) => {
         console.error(`Agent ${agentId} spawn failed:`, err)

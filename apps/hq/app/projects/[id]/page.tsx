@@ -31,13 +31,14 @@ interface Project {
   deployUrl: string | null
   createdAt: string
   updatedAt: string
-  phases: Array<{
-    id: string
-    phaseNumber: number
-    name: string
-    status: string
-    exitCriteria: string | null
-  }>
+}
+
+interface Phase {
+  phaseNumber: number
+  name: string
+  description: string | null
+  exitCriteria: string | null
+  status: string
 }
 
 interface AgentRun {
@@ -75,6 +76,7 @@ export default function ProjectDetailPage({
   const [generating, setGenerating] = useState(false)
   const [genStatus, setGenStatus] = useState("")
   const [genError, setGenError] = useState("")
+  const [phases, setPhases] = useState<Phase[]>([])
   const [agents, setAgents] = useState<AgentRun[]>([])
   const [viewingOutput, setViewingOutput] = useState<string | null>(null)
 
@@ -99,6 +101,14 @@ export default function ProjectDetailPage({
 
     if (data.workspacePath) {
       loadDocs()
+      loadPhases()
+    }
+  }
+
+  async function loadPhases() {
+    const res = await fetch(`/api/projects/${id}/phases`)
+    if (res.ok) {
+      setPhases(await res.json())
     }
   }
 
@@ -118,27 +128,31 @@ export default function ProjectDetailPage({
     }
   }
 
-  async function handleStartPhase(phaseId: string) {
+  async function handleStartPhase(phaseNumber: string) {
+    setGenError("")
     const res = await fetch("/api/agents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: id, prompt: `Implement phase`, phaseId }),
+      body: JSON.stringify({ projectId: id, prompt: `Implement phase`, phaseNumber: parseInt(phaseNumber, 10) }),
     })
-    if (res.ok) {
-      const data = await res.json()
-      setViewingOutput(data.agentId)
-      loadAgents()
-      loadProject()
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Failed to start agent" }))
+      setGenError(err.error || `Agent spawn failed (${res.status})`)
+      return
     }
+    const data = await res.json()
+    setViewingOutput(data.agentId)
+    loadAgents()
+    loadPhases()
   }
 
-  async function handlePhaseAction(phaseId: string, action: string) {
-    await fetch(`/api/projects/${id}`, {
+  async function handlePhaseAction(phaseNumber: string, action: string) {
+    await fetch(`/api/projects/${id}/phases`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phaseAction: { phaseId, action } }),
+      body: JSON.stringify({ phaseNumber: parseInt(phaseNumber, 10), action }),
     })
-    loadProject()
+    loadPhases()
   }
 
   async function handleCancelAgent(agentId: string) {
@@ -348,18 +362,20 @@ export default function ProjectDetailPage({
         </TabsContent>
 
         <TabsContent value="phases" className="mt-4">
-          {project.phases.length === 0 ? (
+          {phases.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <p className="text-muted-foreground">
-                  No phases defined. Phases are parsed from the generated PLAN.md.
+                  {hasDocs
+                    ? "No phases found in PLAN.md."
+                    : "No phases yet. Generate docs to create a PLAN.md with phases."}
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-3">
-              {project.phases.map((phase) => (
-                <Card key={phase.id}>
+              {phases.map((phase) => (
+                <Card key={phase.phaseNumber}>
                   <CardContent className="flex items-center justify-between py-4">
                     <div>
                       <span className="mr-2 text-xs text-muted-foreground">
@@ -373,7 +389,7 @@ export default function ProjectDetailPage({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleStartPhase(phase.id)}
+                          onClick={() => handleStartPhase(String(phase.phaseNumber))}
                         >
                           <PlayIcon className="mr-1 h-3 w-3" />
                           Start
@@ -384,7 +400,7 @@ export default function ProjectDetailPage({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handlePhaseAction(phase.id, "approve")}
+                            onClick={() => handlePhaseAction(String(phase.phaseNumber), "approve")}
                           >
                             <CheckIcon className="mr-1 h-3 w-3" />
                             Approve
@@ -392,14 +408,14 @@ export default function ProjectDetailPage({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handlePhaseAction(phase.id, "reject")}
+                            onClick={() => handlePhaseAction(String(phase.phaseNumber), "reject")}
                           >
                             <XIcon className="h-3 w-3" />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handlePhaseAction(phase.id, "skip")}
+                            onClick={() => handlePhaseAction(String(phase.phaseNumber), "skip")}
                           >
                             <SkipForwardIcon className="h-3 w-3" />
                           </Button>

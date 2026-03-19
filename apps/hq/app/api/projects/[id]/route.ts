@@ -19,14 +19,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 })
   }
 
-  const phases = db
-    .select()
-    .from(schema.phases)
-    .where(eq(schema.phases.projectId, id))
-    .orderBy(schema.phases.phaseNumber)
-    .all()
-
-  return NextResponse.json({ ...project, phases })
+  return NextResponse.json(project)
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {

@@ -1,11 +1,11 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2bd5dc50-56e2-4aef-8269-34242fa1ff50",
+  "id": "61d5b97c-8eff-4b6b-bc5b-8d90701da467",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "agent_tasks": {
-      "name": "agent_tasks",
+    "agent_runs": {
+      "name": "agent_runs",
       "columns": {
         "id": {
           "name": "id",
@@ -14,11 +14,18 @@
           "notNull": true,
           "autoincrement": false
         },
-        "phase_id": {
-          "name": "phase_id",
+        "project_id": {
+          "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "phase_label": {
+          "name": "phase_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "agent_type": {
@@ -28,11 +35,18 @@
           "notNull": true,
           "autoincrement": false
         },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "command": {
           "name": "command",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "status": {
@@ -50,9 +64,51 @@
           "notNull": false,
           "autoincrement": false
         },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "exit_code": {
           "name": "exit_code",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cost_usd": {
+          "name": "cost_usd",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "turn_count": {
+          "name": "turn_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "max_turns": {
+          "name": "max_turns",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "budget_usd": {
+          "name": "budget_usd",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -74,12 +130,146 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "agent_tasks_phase_id_phases_id_fk": {
-          "name": "agent_tasks_phase_id_phases_id_fk",
-          "tableFrom": "agent_tasks",
-          "tableTo": "phases",
+        "agent_runs_project_id_projects_id_fk": {
+          "name": "agent_runs_project_id_projects_id_fk",
+          "tableFrom": "agent_runs",
+          "tableTo": "projects",
           "columnsFrom": [
-            "phase_id"
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "app_settings": {
+      "name": "app_settings",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "encrypted": {
+          "name": "encrypted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "background_processes": {
+      "name": "background_processes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "process_type": {
+          "name": "process_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "command": {
+          "name": "command",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "args": {
+          "name": "args",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'starting'"
+        },
+        "port": {
+          "name": "port",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stopped_at": {
+          "name": "stopped_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "background_processes_project_id_projects_id_fk": {
+          "name": "background_processes_project_id_projects_id_fk",
+          "tableFrom": "background_processes",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
           ],
           "columnsTo": [
             "id"
@@ -121,6 +311,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "version_label": {
+          "name": "version_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "status": {
@@ -225,8 +422,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "phases": {
-      "name": "phases",
+    "process_configs": {
+      "name": "process_configs",
       "columns": {
         "id": {
           "name": "id",
@@ -239,58 +436,69 @@
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
-        "phase_number": {
-          "name": "phase_number",
+        "max_agents": {
+          "name": "max_agents",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false,
-          "default": "'pending'"
+          "default": 5
         },
-        "exit_criteria": {
-          "name": "exit_criteria",
+        "max_background": {
+          "name": "max_background",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 3
+        },
+        "default_model": {
+          "name": "default_model",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false,
+          "default": "'sonnet'"
+        },
+        "default_max_turns": {
+          "name": "default_max_turns",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 50
+        },
+        "default_budget_usd": {
+          "name": "default_budget_usd",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 5
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
-        "started_at": {
-          "name": "started_at",
+        "updated_at": {
+          "name": "updated_at",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "phases_project_id_projects_id_fk": {
-          "name": "phases_project_id_projects_id_fk",
-          "tableFrom": "phases",
+        "process_configs_project_id_projects_id_fk": {
+          "name": "process_configs_project_id_projects_id_fk",
+          "tableFrom": "process_configs",
           "tableTo": "projects",
           "columnsFrom": [
             "project_id"
