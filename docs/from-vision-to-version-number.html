@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Software Project Decomposition — From Vision to Version Number</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FAFAF7;
+  --bg-surface: #F3F2ED;
+  --bg-card: #FFFFFF;
+  --text: #1C1C1A;
+  --text-secondary: #5F5E5A;
+  --text-tertiary: #918F88;
+  --border: #E0DED6;
+  --accent-purple: #534AB7;
+  --accent-teal: #0F6E56;
+  --accent-coral: #D85A30;
+  --accent-blue: #185FA5;
+  --accent-amber: #BA7517;
+  --accent-red: #A32D2D;
+  --purple-50: #EEEDFE; --purple-100: #CECBF6; --purple-600: #534AB7; --purple-800: #3C3489;
+  --teal-50: #E1F5EE; --teal-100: #9FE1CB; --teal-600: #0F6E56; --teal-800: #085041;
+  --coral-50: #FAECE7; --coral-100: #F5C4B3; --coral-600: #993C1D; --coral-800: #712B13;
+  --blue-50: #E6F1FB; --blue-100: #B5D4F4; --blue-600: #185FA5; --blue-800: #0C447C;
+  --amber-50: #FAEEDA; --amber-100: #FAC775; --amber-600: #854F0B; --amber-800: #633806;
+  --red-50: #FCEBEB; --red-100: #F7C1C1; --red-600: #A32D2D; --red-800: #791F1F;
+  --gray-50: #F1EFE8; --gray-100: #D3D1C7; --gray-600: #5F5E5A; --gray-800: #444441;
+  --green-50: #EAF3DE; --green-600: #3B6D11; --green-800: #27500A;
+  --font-display: 'Source Serif 4', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413;
+    --bg-surface: #1E1E1C;
+    --bg-card: #242422;
+    --text: #E8E6DE;
+    --text-secondary: #A8A69E;
+    --text-tertiary: #706E68;
+    --border: #3A3936;
+    --purple-50: #3C3489; --purple-100: #AFA9EC; --purple-600: #CECBF6; --purple-800: #EEEDFE;
+    --teal-50: #085041; --teal-100: #5DCAA5; --teal-600: #9FE1CB; --teal-800: #E1F5EE;
+    --coral-50: #712B13; --coral-100: #F0997B; --coral-600: #F5C4B3; --coral-800: #FAECE7;
+    --blue-50: #0C447C; --blue-100: #85B7EB; --blue-600: #B5D4F4; --blue-800: #E6F1FB;
+    --amber-50: #633806; --amber-100: #EF9F27; --amber-600: #FAC775; --amber-800: #FAEEDA;
+    --red-50: #791F1F; --red-100: #F09595; --red-600: #F7C1C1; --red-800: #FCEBEB;
+    --gray-50: #2C2C2A; --gray-100: #B4B2A9; --gray-600: #D3D1C7; --gray-800: #F1EFE8;
+    --green-50: #27500A; --green-600: #97C459; --green-800: #C0DD97;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 16px;
+  padding: 0;
+}
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 6rem;
+}
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+.subtitle {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  margin-bottom: 3rem;
+  max-width: 540px;
+}
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.35rem;
+  margin-top: 3.5rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.01em;
+}
+h3 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+}
+p { margin-bottom: 1rem; }
+p + .diagram-wrap { margin-top: 1.5rem; }
+.diagram-wrap + p { margin-top: 1.5rem; }
+code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-surface);
+  padding: 0.15em 0.45em;
+  border-radius: 4px;
+}
+.level-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  padding: 0.2em 0.7em;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+.level-badge.purple { background: var(--purple-50); color: var(--purple-800); }
+.level-badge.teal { background: var(--teal-50); color: var(--teal-800); }
+.level-badge.blue { background: var(--blue-50); color: var(--blue-800); }
+.level-badge.coral { background: var(--coral-50); color: var(--coral-800); }
+.level-badge.amber { background: var(--amber-50); color: var(--amber-800); }
+.diagram-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+}
+.diagram-wrap svg {
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+.diagram-wrap svg text.th {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  fill: var(--text);
+}
+.diagram-wrap svg text.ts {
+  font-family: var(--font-body);
+  font-size: 12px;
+  fill: var(--text-secondary);
+}
+.diagram-wrap svg text.tm {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  fill: var(--text-secondary);
+}
+.diagram-wrap svg .arr { stroke: var(--text-tertiary); stroke-width: 1.5; }
+.diagram-wrap svg .leader { stroke: var(--text-tertiary); stroke-width: 0.5; stroke-dasharray: 3 3; }
+.callout {
+  background: var(--bg-surface);
+  border-left: 3px solid var(--accent-teal);
+  border-radius: 0 8px 8px 0;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+.callout strong { color: var(--text); }
+.mapping-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin: 1.5rem 0;
+}
+@media (max-width: 600px) { .mapping-grid { grid-template-columns: 1fr; } }
+.mapping-card {
+  background: var(--bg-surface);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+.mapping-card h4 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
+}
+.task-item {
+  font-size: 0.85rem;
+  margin: 3px 0;
+  padding-left: 1.2rem;
+  position: relative;
+  color: var(--text-secondary);
+}
+.task-item::before {
+  content: '□';
+  position: absolute;
+  left: 0;
+  color: var(--text-tertiary);
+}
+.phase-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 10px 0 4px;
+}
+.ver-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.ver-row:last-child { border-bottom: none; }
+.ver-tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.ver-tag.pre { background: var(--blue-50); color: var(--blue-800); }
+.ver-tag.stable { background: var(--green-50); color: var(--green-800); }
+.ver-tag.post { background: var(--gray-50); color: var(--gray-800); }
+.ver-desc { color: var(--text-secondary); }
+.rule-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+}
+.rule-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  margin: 6px 0;
+  font-size: 0.9rem;
+}
+.rule-label {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  min-width: 100px;
+  color: var(--accent-purple);
+}
+.rule-desc { color: var(--text-secondary); }
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 3rem 0;
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>From vision to version number</h1>
+<p class="subtitle">A methodology for decomposing software projects into architecture, design, tasks, and releases — with a worked example.</p>
+
+<p>This document walks through each decomposition level using a single example project: <strong>a SaaS platform for freelancer invoicing</strong> — create invoices, send them, get paid, track revenue. Classic mid-complexity SaaS (Next.js, Postgres, Auth, Stripe, email, background jobs).</p>
+<p>At each level we show just one representative slice. The goal is to demonstrate the method, not plan the whole project.</p>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════ LEVEL 1 ════════════════════════════════════════ -->
+<span class="level-badge purple">LEVEL 1</span>
+<h2>Vision</h2>
+
+<p>The vision is a long-term hypothesis for the project. It's not a feature list — it's a bet. Everything below it exists to test whether this bet is correct.</p>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 680 180" xmlns="http://www.w3.org/2000/svg">
+  <rect x="40" y="20" width="600" height="130" rx="20" fill="var(--purple-50)" stroke="var(--purple-600)" stroke-width="0.5"/>
+  <text class="th" x="340" y="52" text-anchor="middle" fill="var(--purple-800)">Vision</text>
+  <text class="ts" x="340" y="72" text-anchor="middle" fill="var(--purple-600)">Freelancers get paid faster with less friction</text>
+  <rect x="70" y="90" width="250" height="44" rx="10" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="th" x="195" y="108" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">Hypothesis</text>
+  <text class="ts" x="195" y="124" text-anchor="middle" dominant-baseline="central" fill="var(--teal-600)">Invoicing is broken for solos</text>
+  <rect x="360" y="90" width="250" height="44" rx="10" fill="var(--coral-50)" stroke="var(--coral-600)" stroke-width="0.5"/>
+  <text class="th" x="485" y="108" text-anchor="middle" dominant-baseline="central" fill="var(--coral-800)">Success metric</text>
+  <text class="ts" x="485" y="124" text-anchor="middle" dominant-baseline="central" fill="var(--coral-600)">50 paying users in 90 days</text>
+</svg>
+</div>
+
+<p>The vision doesn't map to any version number. It's above that layer entirely. It answers <em>why this project exists</em> and <em>how you'll know it's working</em>.</p>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════ LEVEL 2 ════════════════════════════════════════ -->
+<span class="level-badge teal">LEVEL 2</span>
+<h2>MVP &amp; milestones</h2>
+
+<p>Pick the minimum set of milestones that test the hypothesis. Everything above the MVP line is v1.0. Everything below is future minor versions.</p>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 680 270" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <text class="th" x="340" y="24" text-anchor="middle">MVP scope — milestones</text>
+  <rect x="40" y="45" width="180" height="52" rx="8" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="th" x="130" y="64" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">M1: Core invoicing</text>
+  <text class="ts" x="130" y="82" text-anchor="middle" dominant-baseline="central" fill="var(--teal-600)">Create + send an invoice</text>
+  <line x1="220" y1="71" x2="248" y2="71" class="arr" marker-end="url(#a1)"/>
+  <rect x="250" y="45" width="180" height="52" rx="8" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="th" x="340" y="64" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">M2: Payments</text>
+  <text class="ts" x="340" y="82" text-anchor="middle" dominant-baseline="central" fill="var(--teal-600)">Accept Stripe payments</text>
+  <line x1="430" y1="71" x2="458" y2="71" class="arr" marker-end="url(#a1)"/>
+  <rect x="460" y="45" width="180" height="52" rx="8" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="th" x="550" y="64" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">M3: Dashboard</text>
+  <text class="ts" x="550" y="82" text-anchor="middle" dominant-baseline="central" fill="var(--teal-600)">Revenue tracking</text>
+
+  <text class="ts" x="340" y="128" text-anchor="middle" fill="var(--text-tertiary)">── MVP boundary ─────────────────────────────────</text>
+
+  <rect x="100" y="148" width="150" height="40" rx="8" fill="var(--gray-50)" stroke="var(--gray-100)" stroke-width="0.5"/>
+  <text class="th" x="175" y="168" text-anchor="middle" dominant-baseline="central" fill="var(--gray-600)">M4: Recurring</text>
+  <rect x="270" y="148" width="150" height="40" rx="8" fill="var(--gray-50)" stroke="var(--gray-100)" stroke-width="0.5"/>
+  <text class="th" x="345" y="168" text-anchor="middle" dominant-baseline="central" fill="var(--gray-600)">M5: Tax / reports</text>
+  <rect x="440" y="148" width="160" height="40" rx="8" fill="var(--gray-50)" stroke="var(--gray-100)" stroke-width="0.5"/>
+  <text class="th" x="520" y="168" text-anchor="middle" dominant-baseline="central" fill="var(--gray-600)">M6: Multi-currency</text>
+
+  <text class="ts" x="40" y="220">M1–M3 = MVP = version 1.0. Each post-MVP milestone maps to a minor (1.1, 1.2…).</text>
+  <text class="ts" x="40" y="240">The MVP boundary defines your 1.0 — not the other way around.</text>
+</svg>
+</div>
+
+<div class="callout">
+  <strong>Key insight:</strong> Milestones are capability checkpoints. They answer "what can the user do now that they couldn't before?" Each milestone is a meaningful unit of value, not just a bag of tasks.
+</div>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════ LEVEL 3 ════════════════════════════════════════ -->
+<span class="level-badge blue">LEVEL 3</span>
+<h2>Architecture (per milestone)</h2>
+
+<p>You're not architecting the whole system at once. You're asking: <em>what components does this milestone need?</em> The architecture evolves as milestones land. Here's the slice for M2 (Payments):</p>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 680 410" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <text class="th" x="340" y="24" text-anchor="middle">M2: Payments — architecture slice</text>
+  <text class="ts" x="340" y="44" text-anchor="middle">Components needed for this milestone</text>
+
+  <rect x="250" y="62" width="180" height="44" rx="8" fill="var(--blue-50)" stroke="var(--blue-600)" stroke-width="0.5"/>
+  <text class="th" x="340" y="84" text-anchor="middle" dominant-baseline="central" fill="var(--blue-800)">Next.js frontend</text>
+  <line x1="340" y1="106" x2="340" y2="130" class="arr" marker-end="url(#a2)"/>
+
+  <rect x="250" y="130" width="180" height="52" rx="8" fill="var(--blue-50)" stroke="var(--blue-600)" stroke-width="0.5"/>
+  <text class="th" x="340" y="150" text-anchor="middle" dominant-baseline="central" fill="var(--blue-800)">API routes</text>
+  <text class="tm" x="340" y="168" text-anchor="middle" dominant-baseline="central">/api/payments/*</text>
+  <line x1="340" y1="182" x2="340" y2="208" class="arr" marker-end="url(#a2)"/>
+
+  <rect x="80" y="208" width="520" height="68" rx="16" fill="var(--purple-50)" stroke="var(--purple-600)" stroke-width="0.5"/>
+  <text class="th" x="340" y="232" text-anchor="middle" dominant-baseline="central" fill="var(--purple-800)">Payment service layer</text>
+
+  <rect x="100" y="240" width="130" height="28" rx="6" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="ts" x="165" y="254" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">Stripe adapter</text>
+  <rect x="245" y="240" width="130" height="28" rx="6" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="ts" x="310" y="254" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">Webhook handler</text>
+  <rect x="390" y="240" width="130" height="28" rx="6" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="ts" x="455" y="254" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">Ledger service</text>
+
+  <line x1="200" y1="276" x2="200" y2="315" class="arr" marker-end="url(#a2)"/>
+  <line x1="480" y1="276" x2="480" y2="315" class="arr" marker-end="url(#a2)"/>
+
+  <rect x="120" y="315" width="160" height="44" rx="8" fill="var(--coral-50)" stroke="var(--coral-600)" stroke-width="0.5"/>
+  <text class="th" x="200" y="337" text-anchor="middle" dominant-baseline="central" fill="var(--coral-800)">Postgres</text>
+  <rect x="400" y="315" width="160" height="44" rx="8" fill="var(--amber-50)" stroke="var(--amber-600)" stroke-width="0.5"/>
+  <text class="th" x="480" y="337" text-anchor="middle" dominant-baseline="central" fill="var(--amber-800)">Job queue</text>
+
+  <line x1="130" y1="240" x2="62" y2="195" class="arr" stroke-dasharray="4 3" marker-end="url(#a2)"/>
+  <text class="ts" x="40" y="185" text-anchor="start">Stripe API</text>
+
+  <text class="ts" x="40" y="395" text-anchor="start">Architecture = which components exist and how they connect.</text>
+</svg>
+</div>
+
+<p>This tells you <em>what to build</em>, not <em>how to build it</em>. The architecture for M1 would look different (no Stripe adapter, no webhook handler). Each milestone reveals new components.</p>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════ LEVEL 4 ════════════════════════════════════════ -->
+<span class="level-badge coral">LEVEL 4</span>
+<h2>Detailed design (per component)</h2>
+
+<p>Zoom into one component from the architecture — the Stripe adapter — and define its interfaces, data model, happy path, and error states. This is the last design artifact before code.</p>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 680 480" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <text class="th" x="340" y="26" text-anchor="middle">Stripe adapter — detailed design</text>
+  <text class="ts" x="340" y="46" text-anchor="middle">Interfaces, data models, error handling</text>
+
+  <rect x="40" y="66" width="290" height="190" rx="12" fill="var(--gray-50)" stroke="var(--gray-100)" stroke-width="0.5"/>
+  <text class="th" x="60" y="92" fill="var(--gray-800)">Interface</text>
+  <text class="tm" x="60" y="114">StripeAdapter</text>
+  <text class="tm" x="70" y="134">.createCheckout(invoice)</text>
+  <text class="tm" x="70" y="154">.handleWebhook(event)</text>
+  <text class="tm" x="70" y="174">.getPaymentStatus(id)</text>
+  <text class="tm" x="70" y="194">.refund(paymentId, amt?)</text>
+  <text class="tm" x="60" y="224" fill="var(--text-tertiary)">// All return Result&lt;T, PayErr&gt;</text>
+
+  <rect x="350" y="66" width="290" height="190" rx="12" fill="var(--gray-50)" stroke="var(--gray-100)" stroke-width="0.5"/>
+  <text class="th" x="370" y="92" fill="var(--gray-800)">Data model</text>
+  <text class="tm" x="370" y="114">payments</text>
+  <text class="tm" x="380" y="134">id: uuid (PK)</text>
+  <text class="tm" x="380" y="154">invoice_id: uuid (FK)</text>
+  <text class="tm" x="380" y="174">stripe_session_id: text</text>
+  <text class="tm" x="380" y="194">status: enum</text>
+  <text class="tm" x="380" y="214">amount_cents: int</text>
+  <text class="tm" x="380" y="234">paid_at: timestamp?</text>
+
+  <text class="th" x="40" y="292">Happy path flow</text>
+
+  <rect x="40" y="306" width="115" height="42" rx="8" fill="var(--blue-50)" stroke="var(--blue-600)" stroke-width="0.5"/>
+  <text class="th" x="97" y="327" text-anchor="middle" dominant-baseline="central" fill="var(--blue-800)" font-size="13">Pay button</text>
+  <line x1="155" y1="327" x2="180" y2="327" class="arr" marker-end="url(#a3)"/>
+  <rect x="180" y="306" width="130" height="42" rx="8" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="tm" x="245" y="327" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">createCheckout</text>
+  <line x1="310" y1="327" x2="335" y2="327" class="arr" marker-end="url(#a3)"/>
+  <rect x="335" y="306" width="130" height="42" rx="8" fill="var(--purple-50)" stroke="var(--purple-600)" stroke-width="0.5"/>
+  <text class="tm" x="400" y="327" text-anchor="middle" dominant-baseline="central" fill="var(--purple-800)">Stripe redirect</text>
+  <line x1="465" y1="327" x2="490" y2="327" class="arr" marker-end="url(#a3)"/>
+  <rect x="490" y="306" width="150" height="42" rx="8" fill="var(--coral-50)" stroke="var(--coral-600)" stroke-width="0.5"/>
+  <text class="tm" x="565" y="327" text-anchor="middle" dominant-baseline="central" fill="var(--coral-800)">Webhook → paid</text>
+
+  <text class="th" x="40" y="390">Error states to handle</text>
+  <rect x="40" y="404" width="180" height="34" rx="8" fill="var(--amber-50)" stroke="var(--amber-600)" stroke-width="0.5"/>
+  <text class="ts" x="130" y="421" text-anchor="middle" dominant-baseline="central" fill="var(--amber-800)">Stripe timeout → retry 3x</text>
+  <rect x="240" y="404" width="200" height="34" rx="8" fill="var(--amber-50)" stroke="var(--amber-600)" stroke-width="0.5"/>
+  <text class="ts" x="340" y="421" text-anchor="middle" dominant-baseline="central" fill="var(--amber-800)">Webhook replay → idempotent</text>
+  <rect x="460" y="404" width="180" height="34" rx="8" fill="var(--red-50)" stroke="var(--red-600)" stroke-width="0.5"/>
+  <text class="ts" x="550" y="421" text-anchor="middle" dominant-baseline="central" fill="var(--red-800)">Card declined → notify user</text>
+
+  <text class="ts" x="40" y="468">Detailed design = how one component works internally.</text>
+</svg>
+</div>
+
+<p>One component, fully specified. Every other component in the architecture gets the same treatment. The detailed design answers "if I handed this to a developer, could they build it without further questions?"</p>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════════════ LEVEL 5 ════════════════════════════════════════ -->
+<span class="level-badge amber">LEVEL 5</span>
+<h2>Tasks, phases &amp; version mapping</h2>
+
+<p>This is where the planning hierarchy meets the delivery hierarchy. Tasks come from the detailed design. Phases are how you order them. Versions are what you stamp on releases.</p>
+
+<div class="mapping-grid">
+  <div class="mapping-card">
+    <h4>M2 tasks (from detailed design)</h4>
+    <p class="phase-label">Phase A: Foundation</p>
+    <div class="task-item">Create payments table + migration</div>
+    <div class="task-item">Stripe SDK setup + env config</div>
+    <div class="task-item">StripeAdapter interface + createCheckout</div>
+    <p class="phase-label">Phase B: Core flow</p>
+    <div class="task-item">Pay button UI + redirect</div>
+    <div class="task-item">Webhook endpoint + signature verify</div>
+    <div class="task-item">Status update pipeline</div>
+    <div class="task-item">Email notification on payment</div>
+    <p class="phase-label">Phase C: Hardening</p>
+    <div class="task-item">Idempotency on webhook replay</div>
+    <div class="task-item">Retry logic + dead letter queue</div>
+    <div class="task-item">Refund flow</div>
+    <div class="task-item">Integration tests w/ Stripe mock</div>
+  </div>
+  <div class="mapping-card">
+    <h4>Version mapping</h4>
+    <div class="ver-row"><span class="ver-tag pre">0.1.0</span><span class="ver-desc">M1 complete — can create invoices</span></div>
+    <div class="ver-row"><span class="ver-tag pre">0.2.0</span><span class="ver-desc">M2 complete — can accept payments</span></div>
+    <div class="ver-row"><span class="ver-tag pre">0.2.1</span><span class="ver-desc">Bugfix: webhook idempotency edge case</span></div>
+    <div class="ver-row"><span class="ver-tag stable">1.0.0</span><span class="ver-desc">M3 done — MVP ships, API stable</span></div>
+    <div class="ver-row"><span class="ver-tag post">1.1.0</span><span class="ver-desc">M4 — recurring invoices</span></div>
+    <div class="ver-row"><span class="ver-tag post">1.1.0-20260319-a8f7b2c</span><span class="ver-desc">Full build tag for traceability</span></div>
+  </div>
+</div>
+
+<h3>The mapping rules</h3>
+
+<div class="rule-box">
+  <div class="rule-row"><span class="rule-label">major</span><span class="rule-desc">You broke the public contract (API, schema, auth). Usually an architectural epoch shift.</span></div>
+  <div class="rule-row"><span class="rule-label">minor</span><span class="rule-desc">New capability shipped. Often aligns with a milestone completion.</span></div>
+  <div class="rule-row"><span class="rule-label">patch</span><span class="rule-desc">Fix within a milestone. Maps to one or a few tasks.</span></div>
+  <div class="rule-row"><span class="rule-label">date-commit</span><span class="rule-desc">Build metadata. Maps to nothing in planning — it's CI/CD traceability.</span></div>
+</div>
+
+<div class="callout">
+  <strong>Phases are invisible to users.</strong> Phase A/B/C within M2 are how you organise work. They never appear in a version number. A user doesn't care that you built the DB schema before the webhook handler — they care that "payments work" (minor bump).
+</div>
+
+<hr class="divider">
+
+<h2>The full picture</h2>
+
+<p>The flow is always <strong>top-down for planning, bottom-up for building</strong>. You decompose Vision → Milestones → Architecture → Design → Tasks. But you build tasks → phases → milestones → releases. The version number is stamped at the release boundary, which is a delivery decision, not a planning one.</p>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 680 320" xmlns="http://www.w3.org/2000/svg">
+  <defs><marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+  <text class="ts" x="100" y="18" text-anchor="middle">Planning (top-down)</text>
+  <text class="ts" x="580" y="18" text-anchor="middle">Delivery (bottom-up)</text>
+
+  <rect x="40" y="30" width="120" height="40" rx="8" fill="var(--purple-50)" stroke="var(--purple-600)" stroke-width="0.5"/>
+  <text class="th" x="100" y="50" text-anchor="middle" dominant-baseline="central" fill="var(--purple-800)">Vision</text>
+  <line x1="100" y1="70" x2="100" y2="90" class="arr" marker-end="url(#a4)"/>
+
+  <rect x="40" y="90" width="120" height="40" rx="8" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="th" x="100" y="110" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">Milestones</text>
+  <line x1="100" y1="130" x2="100" y2="150" class="arr" marker-end="url(#a4)"/>
+
+  <rect x="40" y="150" width="120" height="40" rx="8" fill="var(--blue-50)" stroke="var(--blue-600)" stroke-width="0.5"/>
+  <text class="th" x="100" y="170" text-anchor="middle" dominant-baseline="central" fill="var(--blue-800)">Architecture</text>
+  <line x1="100" y1="190" x2="100" y2="210" class="arr" marker-end="url(#a4)"/>
+
+  <rect x="40" y="210" width="120" height="40" rx="8" fill="var(--coral-50)" stroke="var(--coral-600)" stroke-width="0.5"/>
+  <text class="th" x="100" y="230" text-anchor="middle" dominant-baseline="central" fill="var(--coral-800)">Design</text>
+  <line x1="100" y1="250" x2="100" y2="270" class="arr" marker-end="url(#a4)"/>
+
+  <rect x="40" y="270" width="120" height="40" rx="8" fill="var(--gray-50)" stroke="var(--gray-100)" stroke-width="0.5"/>
+  <text class="th" x="100" y="290" text-anchor="middle" dominant-baseline="central" fill="var(--gray-800)">Tasks</text>
+
+  <!-- Right column: delivery (bottom-up) -->
+  <rect x="520" y="270" width="120" height="40" rx="8" fill="var(--gray-50)" stroke="var(--gray-100)" stroke-width="0.5"/>
+  <text class="th" x="580" y="290" text-anchor="middle" dominant-baseline="central" fill="var(--gray-800)">Tasks</text>
+  <line x1="580" y1="270" x2="580" y2="250" class="arr" marker-end="url(#a4)"/>
+
+  <rect x="520" y="210" width="120" height="40" rx="8" fill="var(--amber-50)" stroke="var(--amber-600)" stroke-width="0.5"/>
+  <text class="th" x="580" y="230" text-anchor="middle" dominant-baseline="central" fill="var(--amber-800)">Phases</text>
+  <line x1="580" y1="210" x2="580" y2="190" class="arr" marker-end="url(#a4)"/>
+
+  <rect x="520" y="150" width="120" height="40" rx="8" fill="var(--teal-50)" stroke="var(--teal-600)" stroke-width="0.5"/>
+  <text class="th" x="580" y="170" text-anchor="middle" dominant-baseline="central" fill="var(--teal-800)">Milestones</text>
+  <line x1="580" y1="150" x2="580" y2="130" class="arr" marker-end="url(#a4)"/>
+
+  <rect x="520" y="90" width="120" height="40" rx="8" fill="var(--green-50)" stroke="var(--green-600)" stroke-width="0.5"/>
+  <text class="th" x="580" y="110" text-anchor="middle" dominant-baseline="central" fill="var(--green-800)">Releases</text>
+
+  <!-- Cross-link: milestones → releases -->
+  <path d="M160 110 L280 110 L280 80 L340 80" fill="none" class="arr" stroke-dasharray="4 3"/>
+  <text class="ts" x="340" y="70" text-anchor="middle">loosely coupled</text>
+  <path d="M340 80 L400 80 L400 110 L520 110" fill="none" class="arr" stroke-dasharray="4 3" marker-end="url(#a4)"/>
+
+  <!-- Version labels next to releases -->
+  <text class="tm" x="580" y="78" text-anchor="middle">← semver stamped here</text>
+</svg>
+</div>
+
+<p>Keep these as <strong>loosely coupled systems</strong> with clear mapping points. Milestones define "what's done." Releases define "what ships and with what compatibility promises." Sometimes they coincide perfectly. Often they don't — you might ship two releases within one milestone, or a single release might span parts of two milestones.</p>
+
+<p>Plan in milestones and phases. Release when the code is ready and stable. Version according to semver's actual rules. Use the metadata suffix for build traceability. The planning board and the version number both tell true stories — they're just narrating different things.</p>
+
+</div>
+</body>
+</html>
