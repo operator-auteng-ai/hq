@@ -2,19 +2,14 @@
 
 ## Current State
 
-Phase 4 in progress. Planning skills and delivery schema implemented:
-- Everything from Phase 1 (project creation, docs, workspace, dashboard) and Phase 2 (agent execution, process management, MCP, orchestrator)
-- Delivery schema: milestones, phases, tasks, releases tables with state machine (Phase 3)
-- DeliveryTracker service with cascade logic, phase review, task extraction from design docs
-- Delivery API routes: GET/PATCH milestones (8 actions), GET/POST releases
-- 4 planning skills: vision, milestones, architecture (updated with per-milestone + roll-up), design
-- Planning Engine service: runs skills by spawning agents, with parsers for milestones and arch components
-- Skill installer: copies skills into project workspaces
-- Project creation flow updated to call `/plan` endpoint instead of `/generate`
-- `/api/projects/:id/plan` SSE endpoint for planning pipeline
-- 183-test suite, TypeScript clean, 12 Playwright E2E passing
+Phase 5 complete. All components built but not yet working end-to-end:
+- Phase 0–2: Skeleton, project creation, agent execution, process management (all working)
+- Phase 3: Delivery schema + tracker (tables, state machine, API routes — working)
+- Phase 4: Planning skills + engine (skills, parsers, installer — working individually, pipeline not chaining)
+- Phase 5: Orchestrator chat (context builder, action extractor, chat UI — working)
+- 198-test suite, TypeScript clean, 12 Playwright E2E passing
 
-**Known limitation**: `PlanningEngine.runPipeline()` currently spawns only the first skill (vision) and returns. Full sequential chaining (vision → milestones → architecture → design → task extraction) requires agent completion callbacks — the AgentManager's `spawn()` is fire-and-forget. This will be resolved when the orchestrator is rewritten to use the delivery tracker (Phase 3.9/6), which will add completion callbacks that drive the pipeline forward.
+**Critical gap**: The pieces don't connect into a working pipeline yet. The planning engine spawns only the first skill (vision) because AgentManager has no completion callbacks. The old doc generator was removed from the project creation flow but nothing replaced it end-to-end. The app creates projects but can't run them through the full decomposition → build cycle.
 
 ## Future State
 
@@ -395,24 +390,98 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ---
 
-### Phase 6 — End-to-End Integration & Hardening
+### Phase 6 — Make It Work
 
-**From**: All pieces exist but haven't been tested as a complete pipeline
-**To**: A user types a vision prompt, HQ runs the full 5-level decomposition, executes all tasks, and produces a working local application
+**From**: All components built (skills, delivery tracker, chat, agent execution) but not connected end-to-end. New project creation calls `/plan` which only spawns vision skill. No completion callbacks. Old doc generator removed from flow but nothing replaced it.
+**To**: A user creates a project and the full planning pipeline runs to completion, populating the delivery schema. User can then start tasks and see agents execute.
 
 | Task | Description |
 |------|-------------|
-| 6.1 | End-to-end smoke test: vision prompt → skills pipeline → task extraction → agent execution → working local app |
-| 6.2 | Phase retry and error recovery: failed tasks can be retried, failed phases roll back gracefully |
-| 6.3 | Progress dashboard: project detail view shows milestone/phase/task tree with live status, completion percentages |
-| 6.4 | Update TAXONOMY.md with new entities (milestones, tasks, releases) and statuses |
-| 6.5 | Update CLAUDE.md generation for project workspaces to reflect new skill-based workflow |
-| 6.6 | Skill quality tuning: iterate on skill prompts based on end-to-end test results |
-| 6.7 | E2E Playwright tests: full pipeline from project creation through task completion |
+| 6.1 | Agent completion callbacks: add `onComplete(agentId, success)` callback to AgentManager. Called from `finishAgent()`. Planning engine and orchestrator register callbacks to drive the pipeline forward |
+| 6.2 | Full pipeline chaining: `PlanningEngine.runPipeline()` runs vision → waits → milestones → waits → architecture (per milestone) → design (per component) → task extraction, using completion callbacks |
+| 6.3 | Remove old doc generator: delete `doc-generator.ts`, `/generate` route, and all references. The planning engine is the only path |
+| 6.4 | Remove old orchestrator PLAN.md parsing: delete `phase-parser.ts`, remove PLAN.md parsing from orchestrator. Phases come from the delivery tracker only |
+| 6.5 | Workspace creation update: `createWorkspace()` no longer needs generated docs — just creates the directory, `git init`, installs skills, generates CLAUDE.md stub. Planning engine populates docs |
+| 6.6 | Project detail page: show planning progress when status is `planning`, show milestone/phase/task tree when status is `building`, remove old phases tab that reads PLAN.md |
+| 6.7 | Agent spawn error visibility: if `spawn()` fails, update `agent_runs` status to `failed` with error message. Show in UI |
+| 6.8 | Resume agent API key fix: `AgentManager.resume()` must retrieve and set API key before calling `query()` |
+| 6.9 | Smoke test: create a project, verify full pipeline runs, verify milestones/phases/tasks appear in DB and UI |
 
-**Exit Criteria**: A mid-complexity SaaS vision (e.g., "freelancer invoicing with Stripe payments") goes from prompt to locally-running, tested application in <4 hours without human code intervention. All milestones, phases, and tasks tracked in DB. User can monitor and control the pipeline via dashboard and orchestrator chat.
+**Exit Criteria**: User creates a project with a vision prompt → planning pipeline runs all 4 skills to completion → milestones, phases, and tasks populated in DB → project detail shows milestone tree → user can start a task → agent spawns and runs → agent output streams to UI. No dead code from old approaches.
 
-**Feedback**: Full v0 feedback. Reconcile all docs against built system. Identify what's needed for v1 (deployment, monitoring, multi-project).
+**Feedback**: Does the pipeline complete reliably? How long does it take? Do the generated docs make sense? Are agent spawn errors visible?
+
+---
+
+### Phase 7 — Orchestrator Rewrite
+
+**From**: Orchestrator uses PLAN.md parsing and phase-label strings. Planning engine and delivery tracker are separate systems
+**To**: Single orchestrator drives both planning and delivery through the delivery tracker, with task-level agent assignment
+
+| Task | Description |
+|------|-------------|
+| 7.1 | Rewrite `orchestrator.ts` to use DeliveryTracker for all state management (no more PLAN.md parsing) |
+| 7.2 | Task-level agent assignment: orchestrator assigns agents to individual tasks (not phases), builds task-level prompts with milestone/phase/design doc context |
+| 7.3 | Phase completion detection: when all tasks in a phase complete, orchestrator triggers phase review agent |
+| 7.4 | Milestone completion detection: when all phases complete, orchestrator marks milestone complete and triggers arch roll-up |
+| 7.5 | Collaboration profile integration: orchestrator pauses at the appropriate levels based on the project's collaboration profile |
+| 7.6 | Update all API routes to use new orchestrator (milestones PATCH actions delegate to orchestrator) |
+| 7.7 | Tests: orchestrator integration with delivery tracker, task-level spawning, phase review triggering |
+
+**Exit Criteria**: Single orchestrator manages the full lifecycle. Tasks are assigned to agents individually. Phase completion triggers automated review. Milestone completion triggers arch roll-up. Collaboration profiles work.
+
+---
+
+### Phase 8 — Progress Dashboard & Milestone Tree UI
+
+**From**: Project detail page shows flat phases list and agent cards
+**To**: Visual milestone/phase/task tree with live status, completion percentages, and inline controls
+
+| Task | Description |
+|------|-------------|
+| 8.1 | Milestone tree component: collapsible tree showing milestones → phases → tasks with status icons and completion bars |
+| 8.2 | Live status updates: poll `/api/projects/:id/milestones` and update tree without full page reload |
+| 8.3 | Inline task controls: start, retry, skip buttons on individual tasks within the tree |
+| 8.4 | Phase review display: show review results inline when phase is in `reviewing` or `review_failed` state |
+| 8.5 | Planning progress view: when project status is `planning`, show skill pipeline progress instead of milestone tree |
+
+**Exit Criteria**: Project detail page shows a navigable milestone tree with live updates. Users can control individual tasks without leaving the tree view.
+
+---
+
+### Phase 9 — Skill Quality & Error Recovery
+
+**From**: Skills produce first-draft docs, errors require manual intervention
+**To**: Skills produce high-quality decomposition docs, failed tasks and phases recover gracefully
+
+| Task | Description |
+|------|-------------|
+| 9.1 | Skill prompt tuning: run the pipeline on 3-5 different project prompts, evaluate output quality, iterate on skill prompts |
+| 9.2 | Phase retry: failed tasks can be retried individually, failed phases roll back and re-execute |
+| 9.3 | Phase review agent: implement the automated review that checks exit criteria, runs tests, reviews code changes |
+| 9.4 | Fix-up loop: review failures create fix-up tasks, phase re-enters active, re-reviews on completion |
+| 9.5 | CLAUDE.md generation update: workspace CLAUDE.md reflects skill-based workflow, doc read order, milestone context |
+
+**Exit Criteria**: Pipeline produces usable decomposition for mid-complexity SaaS prompts. Failed tasks can be retried. Phase review catches common issues and generates fix-up tasks.
+
+---
+
+### Phase 10 — End-to-End Hardening
+
+**From**: Pipeline runs but hasn't been stress-tested
+**To**: A mid-complexity SaaS goes from prompt to locally-running application
+
+| Task | Description |
+|------|-------------|
+| 10.1 | End-to-end test: "freelancer invoicing with Stripe payments" → full decomposition → agent execution → working local app |
+| 10.2 | E2E Playwright tests: full pipeline from project creation through task completion |
+| 10.3 | Architecture roll-up integration: milestone completion triggers canonical doc roll-up |
+| 10.4 | Release stamping: milestone completion creates release records with semver |
+| 10.5 | Full v0 doc reconciliation: update ARCH.md, TAXONOMY.md, PLAN.md against actual built system |
+
+**Exit Criteria**: A mid-complexity SaaS vision goes from prompt to locally-running, tested application in <4 hours without human code intervention. All milestones, phases, and tasks tracked in DB. User can monitor and control the pipeline via dashboard and orchestrator chat.
+
+**Feedback**: Full v0 feedback. Reconcile all docs against built system. Identify what's needed for v1.
 
 ---
 
@@ -438,61 +507,11 @@ graph TD
     P299 --> P4["Phase 4: Planning Skills"]
     P3 --> P5["Phase 5: Orchestrator Chat"]
     P4 --> P5
-    P3 --> P6["Phase 6: E2E Integration & Hardening"]
+    P3 --> P6["Phase 6: Make It Work"]
     P4 --> P6
-    P5 --> P6
-```
-
-## File Structure (Phase 1+2 new files)
-
-```
-apps/hq/
-├── lib/
-│   ├── process/
-│   │   ├── process-registry.ts
-│   │   ├── agent-manager.ts
-│   │   ├── background-process-manager.ts
-│   │   ├── ring-buffer.ts
-│   │   ├── hq-mcp-server.ts
-│   │   ├── output-accumulator.ts
-│   │   ├── concurrency.ts
-│   │   └── types.ts
-│   └── services/
-│       ├── doc-generator.ts
-│       ├── orchestrator.ts
-│       ├── delivery-tracker.ts      (Phase 3)
-│       └── planning-engine.ts       (Phase 4)
-├── app/
-│   ├── api/
-│   │   ├── agents/
-│   │   │   ├── route.ts          (GET list, POST spawn)
-│   │   │   └── [id]/
-│   │   │       ├── route.ts      (GET status, DELETE cancel)
-│   │   │       ├── stream/route.ts (GET SSE)
-│   │   │       └── resume/route.ts (POST resume)
-│   │   ├── processes/
-│   │   │   ├── route.ts          (GET list, POST start)
-│   │   │   └── [id]/
-│   │   │       ├── route.ts      (GET status, DELETE stop)
-│   │   │       └── output/route.ts (GET ring buffer)
-│   │   └── projects/
-│   │       └── [id]/
-│   │           ├── milestones/route.ts  (Phase 3)
-│   │           └── chat/route.ts        (Phase 5)
-│   ├── projects/
-│   │   ├── new/page.tsx
-│   │   └── [id]/page.tsx
-│   └── agents/page.tsx           (update existing)
-├── components/
-│   ├── agent-card.tsx
-│   ├── agent-output.tsx
-│   ├── process-status.tsx
-│   ├── project-form.tsx
-│   ├── orchestrator-chat.tsx     (Phase 5)
-│   └── milestone-tree.tsx        (Phase 6)
-└── skills/                       (Phase 4 — copied into project workspaces)
-    ├── vision/SKILL.md
-    ├── milestones/SKILL.md
-    ├── architecture/SKILL.md     (existing, updated)
-    └── design/SKILL.md
+    P6 --> P7["Phase 7: Orchestrator Rewrite"]
+    P7 --> P8["Phase 8: Progress Dashboard"]
+    P7 --> P9["Phase 9: Skill Quality & Recovery"]
+    P8 --> P10["Phase 10: E2E Hardening"]
+    P9 --> P10
 ```
