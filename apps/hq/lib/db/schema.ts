@@ -1,9 +1,11 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, integer, real, primaryKey } from "drizzle-orm/sqlite-core"
 
 export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   prompt: text("prompt").notNull(),
+  visionHypothesis: text("vision_hypothesis"),
+  successMetric: text("success_metric"),
   status: text("status").notNull().default("draft"),
   workspacePath: text("workspace_path"),
   deployUrl: text("deploy_url"),
@@ -15,11 +17,91 @@ export const projects = sqliteTable("projects", {
     .$defaultFn(() => new Date().toISOString()),
 })
 
+export const milestones = sqliteTable("milestones", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull(),
+  isMvpBoundary: integer("is_mvp_boundary").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  completedAt: text("completed_at"),
+})
+
+export const phases = sqliteTable("phases", {
+  id: text("id").primaryKey(),
+  milestoneId: text("milestone_id")
+    .notNull()
+    .references(() => milestones.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  exitCriteria: text("exit_criteria"),
+  sortOrder: integer("sort_order").notNull(),
+  status: text("status").notNull().default("pending"),
+  reviewResult: text("review_result"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  completedAt: text("completed_at"),
+})
+
+export const tasks = sqliteTable("tasks", {
+  id: text("id").primaryKey(),
+  phaseId: text("phase_id")
+    .notNull()
+    .references(() => phases.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  sourceDoc: text("source_doc"),
+  sortOrder: integer("sort_order").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  completedAt: text("completed_at"),
+})
+
+export const releases = sqliteTable("releases", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  versionLabel: text("version_label").notNull(),
+  tag: text("tag"),
+  notes: text("notes"),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  publishedAt: text("published_at"),
+})
+
+export const releaseMilestones = sqliteTable(
+  "release_milestones",
+  {
+    releaseId: text("release_id")
+      .notNull()
+      .references(() => releases.id, { onDelete: "cascade" }),
+    milestoneId: text("milestone_id")
+      .notNull()
+      .references(() => milestones.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.releaseId, table.milestoneId] }),
+  }),
+)
+
 export const agentRuns = sqliteTable("agent_runs", {
   id: text("id").primaryKey(),
   projectId: text("project_id")
     .notNull()
     .references(() => projects.id),
+  taskId: text("task_id").references(() => tasks.id),
   phaseLabel: text("phase_label"),
   agentType: text("agent_type").notNull(),
   prompt: text("prompt").notNull(),

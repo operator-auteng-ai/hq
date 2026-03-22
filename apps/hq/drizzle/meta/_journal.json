@@ -8,6 +8,13 @@
       "when": 1773862927482,
       "tag": "0000_medical_bloodscream",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774201158367,
+      "tag": "0001_cool_talkback",
+      "breakpoints": true
     }
   ]
 }

@@ -298,3 +298,44 @@
   - Added persistent `genError` state with visible error banner in UI
 - **Outcome**: Error path now surfaces clearly. Button click either shows progress or a visible error.
 - **Discovery**: **Unit tests with mocked dependencies are necessary but not sufficient.** Both bugs were invisible to Vitest (92 tests passed) and TypeScript (typecheck clean) but immediately visible to any user clicking a button. The Phase Feedback checklist did not require actually running the app.
+
+## 2026-03-22
+
+### v0 / Docs — Methodology pivot to "From Vision to Version Number"
+- **Action**: Rewrote VISION.md, ARCH.md, PLAN.md, and TAXONOMY.md to adopt the 5-level decomposition methodology (Vision → Milestones → Architecture → Design → Tasks). VISION.md reframed as "0-to-$1 machine". ARCH.md gained planning vs delivery split, configurable collaboration depth (Operator/Architect/Full auto presets), orchestrator chat, and delivery-side ERD. PLAN.md restructured v0 around "build a mid-sized SaaS locally end-to-end" with new phases 3–6, moving deployment/monitoring/multi-project to v1+. TAXONOMY.md fully rewritten with new entity hierarchy, phase review states, skill types, and version numbering rules. Created DELIVERY_SCHEMA_AND_TRACKER_DETAILED_DESIGN.md for Phase 3.
+- **Outcome**: All docs aligned on the new methodology. Detailed design ready for implementation.
+- **Discovery**: Design docs need namespacing by phase (`docs/detailed_design/<Phase_Name>/`) to avoid filename collisions across milestones. Phase names should be descriptive and context-specific, not a fixed pattern.
+
+### v0 / Phase 3 / Task 3.1 — Schema migration (milestones, phases, tasks, releases, release_milestones)
+- **Action**: Added 5 new tables to `lib/db/schema.ts`: `milestones` (with MVP boundary flag), `phases` (with exit_criteria and review_result JSON columns), `tasks` (with source_doc reference), `releases` (semver + tag), `release_milestones` (composite PK join table). Added `vision_hypothesis` and `success_metric` columns to `projects`. Added `task_id` FK to `agent_runs` (nullable, keeps deprecated `phase_label`). Generated Drizzle migration `0001_cool_talkback.sql`.
+- **Outcome**: 12 tables in schema. Migration applies automatically on startup.
+- **Discovery**: Drizzle `primaryKey()` helper needed import from `drizzle-orm/sqlite-core` for composite PKs.
+
+### v0 / Phase 3 / Task 3.4 — DeliveryTracker service
+- **Action**: Created `lib/services/delivery-tracker.ts`. State machine for milestones (pending→active→completed/failed), phases (pending→active→reviewing→completed/review_failed), and tasks (pending→in_progress→completed/failed/skipped). Enforces valid transitions with typed errors. Cascade logic: task completion triggers phase review check, phase completion triggers milestone completion check. Methods: CRUD for all entities, setPhaseReviewResult, createFixUpTasks, resetPhaseForRework, extractTasksFromDesignDocs (parses `docs/detailed_design/*/` directory structure), getProjectDeliveryTree, getProjectProgress. Singleton on globalThis.
+- **Outcome**: Full delivery-side state machine with cascade logic and task extraction.
+- **Discovery**: None.
+
+### v0 / Phase 3 / Task 3.5 — Task extraction from design docs
+- **Action**: Implemented `extractTasksFromDesignDocs()` in DeliveryTracker. Globs `docs/detailed_design/*/` — each subdirectory becomes a phase (name derived from directory, underscores→spaces). Parses checkbox tasks (`- [ ] ...`) and table format tasks. Parses `## Exit Criteria` sections and stores as JSON on phase records.
+- **Outcome**: Bridge between planning (workspace files) and delivery (DB records) functional.
+- **Discovery**: None.
+
+### v0 / Phase 3 / Task 3.8 — API routes (milestones, releases)
+- **Action**: Created `app/api/projects/[id]/milestones/route.ts` (GET delivery tree, PATCH with Zod discriminated union for 8 actions: startTask, startPhase, approvePhase, rejectPhase, skipTask, retryTask, approveMilestone, getPhaseReview). Created `app/api/projects/[id]/releases/route.ts` (GET list with milestone IDs, POST create with optional publish + auto-generated build tag). Updated `app/api/agents/route.ts` with `taskId` in spawn schema.
+- **Outcome**: Full HTTP API for delivery tracking and release management.
+- **Discovery**: None.
+
+### v0 / Phase 3 / Task 3.3 — agent_runs task_id linkage
+- **Action**: Added `taskId` to AgentConfig type in `lib/process/types.ts`. Updated agent spawn route to accept and persist `taskId`. Existing `phaseLabel` kept for backwards compatibility.
+- **Outcome**: Agent runs can now be linked to specific tasks.
+- **Discovery**: None.
+
+### v0 / Phase 3 / Testing — 29 new tests (160 total)
+- **Action**: Created `lib/services/delivery-tracker.test.ts` with 29 tests covering: milestone CRUD + ordering + MVP boundary, phase CRUD + exit criteria, task CRUD + source_doc + getNextPendingTask, milestone status transitions (valid + invalid + retry), phase status transitions (full lifecycle + review_failed loop + invalid), task status transitions (complete + skip + retry + invalid), task→phase cascade (all complete→reviewing, skipped don't block, failed keeps active), phase→milestone cascade, phase review (store result, create fix-up tasks, force-approve), phase rejection (reset tasks), release operations (create + link + publish with tag), project delivery tree (nested structure + progress stats), task extraction from design docs (single dir, multiple dirs, missing dir).
+- **Outcome**: 160 tests passing (131 existing + 29 new). TypeScript typecheck clean. 12 Playwright E2E tests pass.
+- **Discovery**: None.
+
+### v0 / Phase 3 — In Progress
+- **Remaining tasks**: 3.2 (projects vision_hypothesis/success_metric population — columns exist, population deferred to Phase 4 planning skills), 3.7 (release stamping integration — API exists, orchestrator integration deferred), 3.9 (orchestrator rewrite to use DB — current orchestrator still uses PLAN.md parsing, full rewrite deferred until Phase 4 provides the planning pipeline that populates the delivery schema), 3.10 (additional integration tests for orchestrator + delivery tracker interaction).
+- **Note**: The schema, delivery tracker, API routes, and tests are complete. The orchestrator rewrite (3.9) is intentionally deferred — the current orchestrator still works for existing projects, and the new delivery-tracker-based orchestrator needs the planning skills (Phase 4) to populate its data model. Implementing 3.9 now would create dead code with no way to exercise it.

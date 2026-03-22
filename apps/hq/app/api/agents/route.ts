@@ -8,6 +8,7 @@ import { getAnthropicApiKey } from "@/lib/services/secrets"
 const spawnAgentSchema = z.object({
   projectId: z.string().min(1),
   prompt: z.string().min(1),
+  taskId: z.string().optional(),
   phaseLabel: z.string().optional(),
   phaseNumber: z.number().int().positive().optional(),
   model: z.string().optional(),
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
       .values({
         id: agentId,
         projectId: parsed.projectId,
+        taskId: parsed.taskId ?? null,
         phaseLabel: parsed.phaseLabel ?? (parsed.phaseNumber ? `Phase ${parsed.phaseNumber}` : null),
         agentType: "claude_code",
         prompt: parsed.prompt,

@@ -41,6 +41,7 @@ export interface AgentConfig {
   model?: string
   maxTurns?: number
   maxBudgetUsd?: number
+  taskId?: string
   phaseLabel?: string
   apiKey?: string
 }
