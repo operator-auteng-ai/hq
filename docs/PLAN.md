@@ -2,20 +2,19 @@
 
 ## Current State
 
-Phase 2 complete. Agent execution working end-to-end:
-- Everything from Phase 1 (project creation, docs, workspace, dashboard)
-- Claude Agent SDK integration (`query()` with streaming, abort, resume, MCP injection)
-- Three-layer process management: ProcessRegistry → AgentManager + BackgroundProcessManager
-- In-process HQ MCP Server (5 tools: get_process_output, get_dev_server_url, get_process_status, start_process, stop_process)
-- Background process management with RingBuffer (500-line circular output capture)
-- Output accumulator (batched DB writes every 5s or 50 messages)
-- Agent API routes: spawn, cancel, stream (SSE), resume
-- Background process API routes: start, stop, status, output
-- Agent Monitor UI with live SSE output, cancel/resume controls
-- Project detail agents tab with per-project agent list and background process panel
-- Orchestrator with phase progression and user approval gates (approve/reject/skip)
-- Electron before-quit cleanup (shutdown endpoint for ProcessRegistry)
-- 92-test suite (55 Phase 1 + 37 Phase 2: ring buffer, process registry, schema, orchestrator, output accumulator)
+Phase 4 in progress. Planning skills and delivery schema implemented:
+- Everything from Phase 1 (project creation, docs, workspace, dashboard) and Phase 2 (agent execution, process management, MCP, orchestrator)
+- Delivery schema: milestones, phases, tasks, releases tables with state machine (Phase 3)
+- DeliveryTracker service with cascade logic, phase review, task extraction from design docs
+- Delivery API routes: GET/PATCH milestones (8 actions), GET/POST releases
+- 4 planning skills: vision, milestones, architecture (updated with per-milestone + roll-up), design
+- Planning Engine service: runs skills by spawning agents, with parsers for milestones and arch components
+- Skill installer: copies skills into project workspaces
+- Project creation flow updated to call `/plan` endpoint instead of `/generate`
+- `/api/projects/:id/plan` SSE endpoint for planning pipeline
+- 183-test suite, TypeScript clean, 12 Playwright E2E passing
+
+**Known limitation**: `PlanningEngine.runPipeline()` currently spawns only the first skill (vision) and returns. Full sequential chaining (vision → milestones → architecture → design → task extraction) requires agent completion callbacks — the AgentManager's `spawn()` is fire-and-forget. This will be resolved when the orchestrator is rewritten to use the delivery tracker (Phase 3.9/6), which will add completion callbacks that drive the pipeline forward.
 
 ## Future State
 

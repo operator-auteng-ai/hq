@@ -167,8 +167,8 @@ graph TB
 The Electron main process launches a standalone Next.js server and loads it in a BrowserWindow. The preload bridge exposes a minimal IPC API (`app:minimize`, `app:maximize`, `app:close`) with context isolation. Backend services run as Next.js API routes within the same process. The Process Registry singleton (on `globalThis`) tracks all running agent and background processes, enforcing concurrency limits and enabling clean shutdown on app quit.
 
 The orchestration layer splits into three components:
-- **Orchestrator** — top-level coordinator that sequences the full lifecycle from vision to release
-- **Planning Engine** — runs skills (vision, milestones, architecture, design) by spawning agents with skill context, producing workspace files
+- **Orchestrator** — top-level coordinator that sequences the full lifecycle from vision to release. Currently manages phase-level progression via PLAN.md parsing; will be rewritten to drive the planning engine and delivery tracker sequentially via agent completion callbacks
+- **Planning Engine** — runs skills (vision, milestones, architecture, design) by spawning agents with skill context, producing workspace files. Currently supports individual skill runs and initiates the pipeline; full sequential chaining pending orchestrator rewrite
 - **Delivery Tracker** — state machine that manages milestone/phase/task progression in the database, detects milestone completion, and triggers release stamping
 
 ### Orchestrator Chat

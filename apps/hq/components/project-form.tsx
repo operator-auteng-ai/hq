@@ -66,18 +66,18 @@ export function ProjectForm() {
         throw new Error("No project ID returned")
       }
 
-      // Step 2: Trigger doc generation via SSE POST
+      // Step 2: Trigger planning pipeline via SSE POST
       setGenerating(true)
-      setStatusMessage("Starting doc generation...")
+      setStatusMessage("Starting planning pipeline...")
 
-      const genRes = await fetch(`/api/projects/${projectId}/generate`, {
+      const genRes = await fetch(`/api/projects/${projectId}/plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model }),
+        body: JSON.stringify({ model, collaborationProfile: "full_auto" }),
       })
 
       if (!genRes.ok) {
-        // Project was created but generation failed — still redirect
+        // Project was created but planning failed — still redirect
         router.push(`/projects/${projectId}`)
         return
       }
@@ -88,6 +88,7 @@ export function ProjectForm() {
 
       if (reader) {
         let done = false
+        let currentEvent = ""
         while (!done) {
           const result = await reader.read()
           done = result.done
@@ -95,16 +96,24 @@ export function ProjectForm() {
             const text = decoder.decode(result.value)
             const lines = text.split("\n")
             for (const line of lines) {
-              if (line.startsWith("data: ")) {
+              if (line.startsWith("event: ")) {
+                currentEvent = line.slice(7).trim()
+              } else if (line.startsWith("data: ")) {
                 try {
                   const eventData = JSON.parse(line.slice(6))
-                  if (eventData.message) setStatusMessage(eventData.message)
+                  if (currentEvent === "progress") {
+                    let msg = `${eventData.level}: ${eventData.status}`
+                    if (eventData.detail) msg += ` — ${eventData.detail}`
+                    setStatusMessage(msg)
+                  } else if (currentEvent === "complete") {
+                    setStatusMessage("Done! Redirecting...")
+                  } else if (currentEvent === "error") {
+                    setError(eventData.error || "Planning failed")
+                  }
                 } catch {
                   // ignore parse errors in stream
                 }
-              }
-              if (line.startsWith("event: complete")) {
-                setStatusMessage("Done! Redirecting...")
+                currentEvent = ""
               }
             }
           }
@@ -190,7 +199,7 @@ export function ProjectForm() {
               {submitting ? (
                 <>
                   <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                  {generating ? "Generating Docs..." : "Creating..."}
+                  {generating ? "Planning..." : "Creating..."}
                 </>
               ) : (
                 "Create Project"

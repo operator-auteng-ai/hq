@@ -339,3 +339,53 @@
 ### v0 / Phase 3 — In Progress
 - **Remaining tasks**: 3.2 (projects vision_hypothesis/success_metric population — columns exist, population deferred to Phase 4 planning skills), 3.7 (release stamping integration — API exists, orchestrator integration deferred), 3.9 (orchestrator rewrite to use DB — current orchestrator still uses PLAN.md parsing, full rewrite deferred until Phase 4 provides the planning pipeline that populates the delivery schema), 3.10 (additional integration tests for orchestrator + delivery tracker interaction).
 - **Note**: The schema, delivery tracker, API routes, and tests are complete. The orchestrator rewrite (3.9) is intentionally deferred — the current orchestrator still works for existing projects, and the new delivery-tracker-based orchestrator needs the planning skills (Phase 4) to populate its data model. Implementing 3.9 now would create dead code with no way to exercise it.
+
+### v0 / Phase 4 / Task 4.1 — Vision skill
+- **Action**: Created `skills/vision/SKILL.md`. Extracts hypothesis + success metric from user prompt. Produces `docs/VISION.md` with tightly constrained format (1-3 sentences per section). Emphasizes falsifiable hypotheses and measurable success metrics with numbers and timeframes.
+- **Outcome**: Vision skill ready for agent use.
+- **Discovery**: None.
+
+### v0 / Phase 4 / Task 4.2 — Milestone skill
+- **Action**: Created `skills/milestones/SKILL.md`. Decomposes vision into ordered capability milestones with MVP boundary. Enforces milestones as user-visible capabilities, limits to 7 total, marks MVP boundary with `← MVP` suffix.
+- **Outcome**: Milestone skill ready for agent use.
+- **Discovery**: None.
+
+### v0 / Phase 4 / Task 4.3 — Architecture skill update
+- **Action**: Updated `skills/architecture/SKILL.md` with new "Per-Milestone Mode (Planning Engine)" section. Added: per-milestone scoping (output to `docs/milestones/<name>/`), delta-based output instructions, "Components Requiring Detailed Design" section requirement, "Roll-up Plan" section requirement, and canonical roll-up mode for merging deltas into `docs/ARCH.md` + `docs/arch/` after milestone completion.
+- **Outcome**: Architecture skill supports both standalone use and planning engine integration.
+- **Discovery**: None.
+
+### v0 / Phase 4 / Task 4.4 — Design skill
+- **Action**: Created `skills/design/SKILL.md`. Produces detailed design per component with interface (types/signatures only), Drizzle data model, happy path + error states, granular task checklist (`- [ ]` format), and objectively verifiable exit criteria. Outputs to `docs/detailed_design/<Phase_Name>/<component-name>.md`.
+- **Outcome**: Design skill ready for agent use.
+- **Discovery**: None.
+
+### v0 / Phase 4 / Task 4.5 — Planning Engine service
+- **Action**: Created `lib/services/planning-engine.ts`. Exports types: `SkillName`, `CollaborationProfile`, `PlanningEngineConfig`, `PlanningProgressEvent`, `SkillContext`, `SkillResult`, `PlanningResult`, `ParsedMilestone`. Pure functions: `parseMilestonesDoc()` (MVP boundary detection via `← MVP` suffix or section position), `parseArchComponentList()` (extracts bullet items from components section), `milestoneToArchDir()` (name-to-directory). `PlanningEngine` class with `runPipeline()` and `runSkill()`. Singleton on `globalThis`.
+- **Outcome**: Planning engine spawns agents with skill prompts. `runSkill()` fully functional. `runPipeline()` spawns vision skill and returns.
+- **Discovery**: `AgentManager.spawn()` is fire-and-forget — resolves when the agent starts, not when it finishes. Full sequential pipeline chaining requires completion callbacks not yet available. Noted with TODO.
+
+### v0 / Phase 4 / Task 4.6 — Skill installer
+- **Action**: Created `lib/services/skill-installer.ts`. `getSkillsSourceDir()` resolves skills path (dev: relative to repo root, Electron prod: `process.resourcesPath`). `installSkills()` copies all 4 skills into workspace, idempotent. `readSkillContent()` reads installed skill from workspace.
+- **Outcome**: Skills can be installed into project workspaces and read back.
+- **Discovery**: None.
+
+### v0 / Phase 4 / Task 4.7 — Project creation flow update
+- **Action**: Updated `components/project-form.tsx` to POST to `/api/projects/:id/plan` instead of `/api/projects/:id/generate`. Request body includes `collaborationProfile: "full_auto"`. SSE stream parsing updated to handle `event: progress` / `event: complete` / `event: error` format. Status messages updated to "Starting planning pipeline..." / "Planning...".
+- **Outcome**: New project creation uses the planning engine. Old `/generate` endpoint kept for backwards compatibility.
+- **Discovery**: None.
+
+### v0 / Phase 4 / Task 4.8 — Bridge (partial)
+- **Action**: `/api/projects/:id/plan` SSE endpoint created. `DeliveryTracker.extractTasksFromDesignDocs()` already exists from Phase 3. `runPipeline()` installs skills and spawns vision agent. Full sequential chaining (vision → parse → milestones → parse → architecture → design → extract tasks) deferred — requires agent completion callbacks.
+- **Outcome**: Pipeline initiates but does not chain. Each skill can be run individually via `runSkill()`. Sequential orchestration is an orchestrator-rewrite concern (Phase 3.9/6).
+- **Discovery**: The gap between "spawn agent" and "know when agent is done" is the key missing piece. The AgentManager's `finishAgent()` method updates the DB but has no callback mechanism. Adding an `onComplete` callback to AgentManager would unblock full pipeline chaining — this should be done as part of the orchestrator rewrite.
+
+### v0 / Phase 4 / Task 4.9 — Tests
+- **Action**: Created `lib/services/planning-engine.test.ts` with 23 tests: `parseMilestonesDoc` (5 tests: explicit MVP, fallback MVP, single milestone, empty, no section), `parseArchComponentList` (4 tests: h2 section, h3 section, missing, empty), `milestoneToArchDir` (2 tests: basic conversion, special chars), skill installer (4 tests: install all, idempotent, read content, read missing throws), prompt construction (3 tests: basic, milestone context, component context), PlanningEngine class (5 tests: runSkill spawns agent, prompt includes project prompt, handles spawn failure, runPipeline installs skills, runPipeline emits progress events).
+- **Outcome**: 183 tests passing (160 Phase 3 + 23 Phase 4). TypeScript typecheck clean. 12 Playwright E2E pass.
+- **Discovery**: None.
+
+### v0 / Phase 4 — In Progress
+- **Completed**: Tasks 4.1–4.7, 4.9. All skills created, planning engine functional, project creation flow updated, 23 new tests.
+- **Remaining**: Task 4.8 (full pipeline chaining). The planning engine can run individual skills and initiate the pipeline, but cannot automatically chain vision → milestones → architecture → design → task extraction because `AgentManager.spawn()` is fire-and-forget with no completion callback. This is an orchestrator-rewrite concern — adding `onComplete` to AgentManager will unblock it.
+- **Note**: The old `/generate` endpoint and doc generator are kept for backwards compatibility. The `/plan` endpoint is the new default. Skills are installable and improvable independently as designed.

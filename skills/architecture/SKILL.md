@@ -253,6 +253,75 @@ After producing the first draft:
 
 When the user asks for changes, update the document in place rather than rewriting from scratch. Architecture docs grow and refine over multiple passes.
 
+## Per-Milestone Mode (Planning Engine)
+
+When invoked by the planning engine, the architecture skill operates in **per-milestone mode**. Instead of producing a full architecture document, it produces a focused delta scoped to a single milestone.
+
+### Scope and Output Location
+
+- The scope is a single milestone (name provided in the prompt).
+- Output goes to `docs/milestones/<milestone_name>/ARCH.md`.
+- If the milestone is complex enough to warrant sub-documents (e.g., a detailed data model, a protocol spec, or a subsystem deep-dive), place them in the same directory: `docs/milestones/<milestone_name>/`.
+
+### Delta-Based Output
+
+In per-milestone mode, write **deltas, not full docs**. Assume the reader has already read the canonical architecture documents (`docs/ARCH.md` and `docs/arch/`). Do NOT re-state existing architecture.
+
+Structure the milestone ARCH.md with these sections:
+
+- **New Components** — components being introduced by this milestone. Include a mermaid diagram showing how they fit into the existing system overview.
+- **Schema Changes** — new tables, widened columns, new relationships. Use mermaid `erDiagram` and mark each entity as New, Modified, or Reference (existing, shown for context).
+- **New Integration Points** — new protocols, APIs, IPC channels, or event flows introduced. Use the standard integration points table format.
+- **Key Decisions** — architectural decisions made for this milestone, with alternatives considered.
+
+Skip any section that has no content for this milestone. Add additional sections if the milestone introduces something that doesn't fit the four above (e.g., a new deployment target, a security boundary change).
+
+### Components Requiring Detailed Design
+
+Always include this section at the end of the delta content. List components introduced or significantly changed by this milestone that need their own detailed design documents. These drive the design skill.
+
+```markdown
+### Components Requiring Detailed Design
+
+- **AgentSandbox** — isolation model, resource limits, IPC protocol with orchestrator
+- **DeployPipeline** — stage definitions, rollback strategy, provider abstraction
+- **KPICollector** — metric schema, polling vs push, aggregation windows
+```
+
+### Roll-up Plan
+
+Always include this section as the very last section in the milestone ARCH.md. It describes how the milestone's architectural delta should be merged into the canonical docs after milestone completion.
+
+Use these categories:
+
+- **"New subsystem"** → create `docs/arch/<name>/ARCH.md`
+- **"Extends existing"** → merge into the existing canonical doc (specify which one)
+- **"Cross-cutting concern"** → create or update `docs/arch/<concern>/ARCH.md`
+- **"Update ARCH.md"** → what to add to the system overview in `docs/ARCH.md` (new nodes, new edges, new subgraphs)
+
+```markdown
+### Roll-up Plan
+
+| Delta | Category | Target |
+|-------|----------|--------|
+| AgentSandbox | New subsystem | Create `docs/arch/agent-sandbox/ARCH.md` |
+| Deploy pipeline | Extends existing | Merge into `docs/arch/deploy/ARCH.md` |
+| Observability hooks | Cross-cutting concern | Update `docs/arch/observability/ARCH.md` |
+| System overview | Update ARCH.md | Add AgentSandbox node, edge to Orchestrator |
+```
+
+### Canonical Roll-up Mode
+
+When invoked in **roll-up mode** (after milestone completion), the skill executes the roll-up rather than producing a delta. The workflow is:
+
+1. Read the milestone delta's **Roll-up Plan** from `docs/milestones/<milestone_name>/ARCH.md`.
+2. Read the existing canonical docs (`docs/ARCH.md` and any files under `docs/arch/` referenced in the plan).
+3. Execute each row of the roll-up plan:
+   - Create new canonical docs under `docs/arch/` for new subsystems and cross-cutting concerns.
+   - Merge delta content into existing canonical docs for "extends existing" entries.
+   - Update the `docs/ARCH.md` system overview diagram and component boundaries table.
+4. The milestone directory (`docs/milestones/<milestone_name>/`) is **kept for historical reference** — do not delete or modify it during roll-up.
+
 ## Reference Examples
 
 For examples of well-structured architecture documents in different contexts, see `references/examples.md`. These show both greenfield and incremental patterns.
