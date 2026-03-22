@@ -15,16 +15,17 @@ Replace the monolithic doc generator with a **Planning Engine** that runs 4 skil
 
 ```
 Vision prompt
-  → Vision skill        → VISION.md (hypothesis + success metric)
-  → Milestone skill      → MILESTONES.md (ordered milestones, MVP boundary)
-  → Architecture skill   → <MILESTONE>_ARCH.md (working draft per milestone)
+  → Vision skill        → docs/VISION.md (hypothesis + success metric)
+  → Milestone skill      → docs/MILESTONES.md (ordered milestones, MVP boundary)
+  → Architecture skill   → docs/milestones/<name>/ARCH.md (delta off canonical)
+                           docs/milestones/<name>/<SUBSYSTEM>_ARCH.md (if needed)
   → Design skill         → docs/detailed_design/<Phase>/<component>.md
   → Task extraction      → delivery schema populated (milestones, phases, tasks in DB)
   ... agents implement tasks ...
-  → Architecture roll-up → merge working draft into canonical arch docs
+  → Architecture roll-up → merge milestone arch deltas into canonical docs
 ```
 
-After the design skill completes, the Planning Engine calls `DeliveryTracker.extractTasksFromDesignDocs()` to bridge planning files into the delivery schema. After a milestone's tasks are all complete and reviewed, the architecture skill runs again in roll-up mode to merge the working draft into the canonical architecture docs.
+After the design skill completes, the Planning Engine calls `DeliveryTracker.extractTasksFromDesignDocs()` to bridge planning files into the delivery schema. After a milestone's tasks are all complete and reviewed, the architecture skill runs again in roll-up mode to merge the milestone arch deltas into the canonical architecture docs.
 
 ## Skills
 
@@ -129,68 +130,113 @@ The skill produces a MILESTONES.md following this structure:
 ### Skill 3: Architecture (`skills/architecture/SKILL.md` — update existing)
 
 **Input**: `docs/VISION.md`, `docs/MILESTONES.md`, current milestone name, existing canonical arch docs
-**Output**: `docs/<MILESTONE>_ARCH.md` (e.g., `docs/PAYMENTS_ARCH.md`) — a working draft
+**Output**: `docs/milestones/<milestone_name>/ARCH.md` and optionally sub-docs in the same directory
 **Collaboration**: Pauses for review in `architect` profile
-**Note**: This skill already exists. It already supports greenfield vs incremental architectures and uses descriptive prefixed filenames (`MOBILE_ARCH.md`, `AUTH_ARCH.md`, etc.). The update scopes it to work per-milestone and adds the canonical roll-up step.
+**Note**: This skill already exists. It already supports greenfield vs incremental architectures and uses descriptive prefixed filenames. The update scopes it to work per-milestone with delta-based arch docs.
 
-The architecture skill identifies what components a specific milestone needs and how they connect. Each milestone gets its own architecture document as a **working draft** — `docs/<MILESTONE_NAME>_ARCH.md`. These drafts are consumed during implementation and then rolled up into the canonical arch docs when the milestone completes.
+The architecture skill identifies what components a specific milestone needs and how they connect. Each milestone gets its own directory under `docs/milestones/` containing architecture **deltas** — they describe only what's *changing* relative to the canonical arch docs, not re-stating what already exists.
+
+**Milestone arch directory structure:**
+
+**Workspace directory structure:**
+
+```
+docs/
+├── ARCH.md                              ← canonical: top-level system architecture
+├── arch/                                ← canonical: subsystems, concerns, app-level arch
+│   ├── payments/
+│   │   ├── ARCH.md                      ← payments subsystem (after roll-up)
+│   │   └── STRIPE_INTEGRATION_ARCH.md   ← complex sub-component (after roll-up)
+│   ├── auth/
+│   │   └── ARCH.md                      ← cross-cutting auth concern (after roll-up)
+│   └── frontend/
+│       └── ARCH.md                      ← frontend app arch (multi-app projects)
+└── milestones/
+    ├── core_invoicing/
+    │   └── ARCH.md                      ← delta off canonical
+    └── payments/
+        ├── ARCH.md                      ← delta: main arch changes for this milestone
+        └── WEBHOOK_ARCH.md              ← delta: concern within this milestone
+```
+
+**Two directory trees, two purposes:**
+
+- `docs/arch/` — **canonical** architecture docs representing the system *now*. Can be nested by subsystem, concern, or app. `docs/ARCH.md` is always the top-level entry point.
+- `docs/milestones/<name>/` — **delta** architecture docs for in-progress milestones. Describe only what's *changing*.
+
+Each milestone directory can contain:
+- `ARCH.md` — the primary delta for the milestone (always present)
+- Additional docs if the milestone introduces enough complexity to warrant separate deltas
+
+Milestone deltas are **not standalone documents**. They assume the reader has read the canonical docs and describe only:
+- New components being added
+- Existing components being modified (what changes and why)
+- New data model entities or schema changes
+- New integration points
+- New architectural decisions
 
 **Architecture doc lifecycle:**
 
 ```
-Planning:   Architecture skill → PAYMENTS_ARCH.md (working draft)
-Building:   Agents read PAYMENTS_ARCH.md during task execution
-Review:     Phase review verifies implementation matches arch
-Roll-up:    On milestone completion, merge into canonical docs
-Archive:    Working draft moved to docs/archive/
+Planning:   Architecture skill → docs/milestones/payments/ARCH.md (delta)
+Building:   Agents read canonical docs (docs/ARCH.md + docs/arch/) AND milestone delta
+Review:     Phase review verifies implementation matches arch delta
+Roll-up:    On milestone completion, merge deltas into canonical docs
 ```
 
-**Canonical arch docs** are the set of architecture documents that represent the system as it is *now*. They follow the existing skill naming convention:
+**Canonical arch docs** are organised under `docs/ARCH.md` (top-level) and `docs/arch/` (everything else):
 
-| Doc | Scope | Example |
-|-----|-------|---------|
-| `ARCH.md` | System-level overview — all components and how they connect | The main architecture doc |
-| `<SUBSYSTEM>_ARCH.md` | A subsystem that emerged from a milestone | `PAYMENTS_ARCH.md` (promoted from working draft) |
-| `<CONCERN>_ARCH.md` | A cross-cutting concern | `AUTH_ARCH.md` |
+| Location | Scope | Example |
+|----------|-------|---------|
+| `docs/ARCH.md` | System-level overview — all apps/components and how they connect | Always exists. For a single-app project this may be the only arch doc |
+| `docs/arch/<subsystem>/ARCH.md` | A subsystem with enough complexity to warrant its own doc | `docs/arch/payments/ARCH.md` |
+| `docs/arch/<concern>/ARCH.md` | A cross-cutting concern | `docs/arch/auth/ARCH.md` |
+| `docs/arch/<app>/ARCH.md` | An application in a multi-app system | `docs/arch/frontend/ARCH.md`, `docs/arch/api/ARCH.md` |
+| `docs/arch/<parent>/<child>.md` | Further decomposition within a subsystem | `docs/arch/payments/STRIPE_INTEGRATION_ARCH.md` |
 
-A newcomer reads the canonical set to understand the current system. They never need to read milestone working drafts.
+The depth of nesting depends on project complexity. A simple SaaS might only have `docs/ARCH.md`. A complex multi-app system might have `docs/arch/frontend/`, `docs/arch/api/`, `docs/arch/mobile/` each with their own sub-docs.
+
+A newcomer reads `docs/ARCH.md` for the overview, then dives into `docs/arch/` for subsystem details. They never need to read milestone deltas.
 
 **Roll-up rules** (applied by the architecture skill at milestone completion):
 
-1. **New subsystem**: The working draft becomes a canonical doc — rename from milestone working draft to subsystem name if needed, remove milestone-specific framing, update cross-references
-2. **Extends existing system**: Merge new components, data model changes, and integration points into the existing canonical `ARCH.md` or relevant `<SUBSYSTEM>_ARCH.md`
-3. **Cross-cutting concern**: Create or update a `<CONCERN>_ARCH.md` — e.g., if the payments milestone introduced auth, create `AUTH_ARCH.md`
-4. **Always**: Update the system-level `ARCH.md` overview diagram and component boundaries to reflect the new state
+1. **New subsystem**: Create a canonical doc under `docs/arch/<subsystem>/ARCH.md` — expand the delta into a full standalone doc with all context
+2. **Extends existing system**: Apply the delta's changes into the existing canonical `docs/ARCH.md` or relevant `docs/arch/<subsystem>/ARCH.md`
+3. **Cross-cutting concern**: Create or update `docs/arch/<concern>/ARCH.md`
+4. **Complex sub-component**: Create additional docs within an existing subsystem directory (e.g., `docs/arch/payments/STRIPE_INTEGRATION_ARCH.md`)
+5. **Always**: Update the system-level `docs/ARCH.md` overview diagram and component boundaries to reflect the new state
 
-After roll-up, the working draft is moved to `docs/archive/<MILESTONE>_ARCH.md` for historical reference.
+The milestone directory (`docs/milestones/<name>/`) is kept for historical reference after roll-up.
 
 **Changes to existing skill**:
-- Add a "Per-Milestone Scope" section explaining that when invoked by the planning engine, the scope is a single milestone
-- Add instruction to read MILESTONES.md and focus only on the named milestone
-- Add instruction to read existing canonical arch docs to understand what already exists
+- Add a "Per-Milestone Scope" section explaining that when invoked by the planning engine, the output goes to `docs/milestones/<name>/`
+- Add instruction: "Write deltas, not full docs. Assume the reader has read the canonical arch docs. Describe only what this milestone adds or changes."
+- Add instruction to read existing canonical arch docs to understand current state
 - Add instruction to include a "Components Requiring Detailed Design" section
 - Add a "Canonical Roll-up" mode that the planning engine invokes at milestone completion
 
-The skill produces a per-milestone working draft:
+The skill produces milestone delta docs:
 
 ```markdown
-# ARCH — Payments (Working Draft)
+# ARCH — Payments (Milestone Delta)
 
-> Architecture for the Payments milestone — accepting Stripe payments.
-> Level: Application
-> Builds on existing [ARCH.md](./ARCH.md).
-> Status: Working draft — will be rolled into canonical docs on milestone completion.
+> Architecture delta for the Payments milestone.
+> Read [../ARCH.md](../ARCH.md) for the current system architecture.
 
-## Components
-- Payment service layer (Stripe adapter, webhook handler, ledger service)
-- API routes (`/api/payments/*`)
-- Payments table (Postgres)
-- Job queue (background processing)
+## New Components
+- **Payment service layer**: Stripe adapter, webhook handler, ledger service
+- **API routes**: `/api/payments/*`
+- **Job queue**: Background processing for webhook retries
 
-## Component Diagram
-<mermaid graph>
+## Schema Changes
+- New table: `payments` (id, invoice_id, stripe_session_id, status, amount_cents, paid_at)
+- New table: `webhook_events` (id, stripe_event_id, type, status, received_at)
 
-...
+## New Integration Points
+| Protocol | Used For | Direction |
+|----------|----------|-----------|
+| Stripe API | Payment processing | App → Stripe |
+| Stripe Webhooks | Payment status updates | Stripe → App |
 
 ## Components Requiring Detailed Design
 - Stripe adapter
@@ -198,15 +244,15 @@ The skill produces a per-milestone working draft:
 - Ledger service
 
 ## Roll-up Plan
-- **New subsystem**: Payments is a new subsystem → promote this doc to canonical `PAYMENTS_ARCH.md`
-- **Update ARCH.md**: Add payments components to system overview diagram
+- **New subsystem**: Create canonical `docs/arch/payments/ARCH.md`
+- **Update ARCH.md**: Add payments to system overview diagram, add Stripe to integration points table
 ```
 
-The "Components Requiring Detailed Design" list drives what the design skill produces next. The "Roll-up Plan" section tells the planning engine how to merge this draft into the canonical set.
+The "Components Requiring Detailed Design" list drives what the design skill produces next. The "Roll-up Plan" section tells the planning engine how to merge this delta into the canonical set.
 
 ### Skill 4: Design (`skills/design/SKILL.md`)
 
-**Input**: `docs/VISION.md`, `docs/MILESTONES.md`, the milestone's `<MILESTONE>_ARCH.md`, component name
+**Input**: `docs/VISION.md`, `docs/MILESTONES.md`, the milestone's arch delta (`docs/milestones/<name>/ARCH.md`), component name
 **Output**: `docs/detailed_design/<Phase_Name>/<component-name>.md`
 **Collaboration**: Pauses for review in `architect` profile
 
@@ -322,13 +368,14 @@ export class PlanningEngine {
 4. For each milestone:
    a. Run architecture skill (planning mode)
       - Build prompt: skill content + milestone name + "Read VISION.md, MILESTONES.md, and existing canonical arch docs"
-      - Spawn agent, wait for completion
-      - Determine output filename (e.g., `PAYMENTS_ARCH.md`) from milestone name
-      - Parse "Components Requiring Detailed Design" list from the working draft
+      - Spawn agent with cwd set to workspace
+      - Agent writes delta docs to `docs/milestones/<milestone_name>/`
+      - Wait for completion
+      - Parse "Components Requiring Detailed Design" list from `docs/milestones/<name>/ARCH.md`
 
    b. For each component requiring design:
       - Run design skill
-        - Build prompt: skill content + component name + "Read the milestone's arch doc for context"
+        - Build prompt: skill content + component name + "Read the milestone's arch delta and canonical docs for context"
         - Spawn agent, wait for completion
         - Verify design doc created under docs/detailed_design/
 
@@ -340,11 +387,11 @@ export class PlanningEngine {
 
    d. Run architecture roll-up (on milestone completion)
       - Run architecture skill in roll-up mode
-      - Agent reads the working draft's "Roll-up Plan" section
+      - Agent reads the milestone delta's "Roll-up Plan" section
       - Agent reads existing canonical docs
-      - Agent merges working draft into canonical docs (promote, extend, or create cross-cutting doc)
+      - Agent merges deltas into canonical docs (promote, extend, or create cross-cutting doc)
       - Agent updates ARCH.md system overview to reflect current state
-      - Move working draft to docs/archive/
+      - Milestone directory kept for historical reference
       - git commit
 
 5. Update project status: "planning" → "building" (ready for delivery)
@@ -452,7 +499,7 @@ export function parseMilestonesDoc(content: string): ParsedMilestone[] {
 
 ### Architecture Component Parsing
 
-After the architecture skill runs, the engine reads the milestone's arch doc (e.g., `docs/PAYMENTS_ARCH.md`) and parses the "Components Requiring Detailed Design" section:
+After the architecture skill runs, the engine reads the milestone's arch delta (e.g., `docs/milestones/payments/ARCH.md`) and parses the "Components Requiring Detailed Design" section:
 
 ```typescript
 export function parseArchComponentList(archContent: string): string[] {
@@ -461,10 +508,10 @@ export function parseArchComponentList(archContent: string): string[] {
   // Return component names
 }
 
-export function milestoneToArchFilename(milestoneName: string): string {
-  // "Core invoicing" → "CORE_INVOICING_ARCH.md"
-  // "Payments" → "PAYMENTS_ARCH.md"
-  return milestoneName.toUpperCase().replace(/\s+/g, "_") + "_ARCH.md"
+export function milestoneToArchDir(milestoneName: string): string {
+  // "Core invoicing" → "core_invoicing"
+  // "Payments" → "payments"
+  return milestoneName.toLowerCase().replace(/\s+/g, "_")
 }
 ```
 
@@ -693,9 +740,9 @@ export function getPlanningEngine(): PlanningEngine {
 |------|-----------------|
 | **parseMilestonesDoc** | Parses well-formed MILESTONES.md into structured array with MVP boundary detection |
 | **parseMilestonesDoc edge cases** | Handles missing MVP marker, single milestone, empty doc |
-| **parseArchComponentList** | Extracts component list from milestone's `<MILESTONE>_ARCH.md` |
+| **parseArchComponentList** | Extracts component list from milestone's `docs/milestones/<name>/ARCH.md` |
 | **parseArchComponentList missing section** | Returns empty array if no "Components Requiring Detailed Design" section |
-| **milestoneToArchFilename** | Converts milestone name to arch filename (e.g., "Payments" → "PAYMENTS_ARCH.md") |
+| **milestoneToArchDir** | Converts milestone name to directory name (e.g., "Core invoicing" → "core_invoicing") |
 | **installSkills** | Copies all 4 skill files into workspace |
 | **installSkills idempotent** | Running twice doesn't duplicate or error |
 | **PlanningEngine.runSkill vision** | Spawns agent with vision skill content, verifies VISION.md created |
@@ -706,10 +753,11 @@ export function getPlanningEngine(): PlanningEngine {
 | **PlanningEngine.runPipeline error handling** | Agent failure at any stage emits error event, pipeline stops |
 | **PlanningEngine.runPipeline collaboration pause** | In operator profile, pauses after vision and milestones |
 | **PlanningEngine.runSkill re-run** | Can re-run architecture skill for a specific milestone |
-| **Architecture roll-up** | On milestone completion, working draft merged into canonical docs, draft archived |
-| **Architecture roll-up — new subsystem** | Working draft promoted to canonical subsystem doc |
-| **Architecture roll-up — extends existing** | Components merged into existing canonical ARCH.md |
+| **Architecture roll-up** | On milestone completion, deltas merged into canonical docs |
+| **Architecture roll-up — new subsystem** | Delta produces new canonical doc under `docs/arch/<subsystem>/ARCH.md` |
+| **Architecture roll-up — extends existing** | Delta's changes merged into existing canonical docs |
 | **Architecture roll-up — ARCH.md overview updated** | System overview diagram reflects new components after roll-up |
+| **Architecture delta is not standalone** | Delta doc references canonical docs, only describes changes |
 | **buildSkillPrompt** | Includes skill content, project prompt, and context instructions |
 | **Project creation integration** | POST /api/projects → POST /api/projects/:id/plan produces full workspace |
 | **Backwards compat** | Old /generate endpoint still works |
@@ -720,15 +768,17 @@ export function getPlanningEngine(): PlanningEngine {
 2. Observe planning progress — vision skill runs, produces VISION.md
 3. Check VISION.md has a focused hypothesis and success metric (not a generic feature list)
 4. Milestone skill runs, produces MILESTONES.md with 3-5 ordered milestones and MVP boundary
-5. Architecture skill runs for M1, creates `docs/CORE_INVOICING_ARCH.md` (working draft) with component list
-6. Design skill runs for each component, creates files under `docs/detailed_design/`
-7. Task extraction populates delivery schema — verify via `GET /api/projects/:id/milestones`
-8. Verify milestones, phases (from directory names), and tasks (from checkbox items) are all present
-9. Verify each task has `source_doc` pointing to the correct design doc
-10. Verify phases have `exit_criteria` extracted from design docs
-11. Simulate M1 milestone completion → architecture roll-up runs
-12. Verify canonical docs updated — `ARCH.md` system overview now includes M1 components
-13. Verify `CORE_INVOICING_ARCH.md` either promoted to canonical or merged, working draft moved to `docs/archive/`
-14. Architecture skill runs for M2, creates `docs/PAYMENTS_ARCH.md` working draft that references updated canonical docs
-15. Compare output quality against the old monolithic doc generator — should be more structured and actionable
-16. Test collaboration pause — in operator profile, verify pipeline pauses after vision and milestones
+5. Architecture skill runs for M1, creates `docs/milestones/core_invoicing/ARCH.md` (delta) with component list
+6. Verify the delta doc references canonical docs and only describes new components, not re-stating existing architecture
+7. Design skill runs for each component, creates files under `docs/detailed_design/`
+8. Task extraction populates delivery schema — verify via `GET /api/projects/:id/milestones`
+9. Verify milestones, phases (from directory names), and tasks (from checkbox items) are all present
+10. Verify each task has `source_doc` pointing to the correct design doc
+11. Verify phases have `exit_criteria` extracted from design docs
+12. Simulate M1 milestone completion → architecture roll-up runs
+13. Verify canonical docs updated — `docs/ARCH.md` system overview now includes M1 components
+14. Verify appropriate canonical docs created (e.g., `docs/arch/invoicing/ARCH.md` if new subsystem)
+15. Verify `docs/milestones/core_invoicing/` kept for historical reference
+16. Architecture skill runs for M2, creates `docs/milestones/payments/ARCH.md` delta that references updated canonical docs
+17. Compare output quality against the old monolithic doc generator — should be more structured and actionable
+18. Test collaboration pause — in operator profile, verify pipeline pauses after vision and milestones

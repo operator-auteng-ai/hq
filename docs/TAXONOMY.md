@@ -17,7 +17,7 @@ Planning artifacts are workspace files produced by skills and versioned by git.
 |------|-----------|-----|
 | **Vision** | A hypothesis about what should exist, with a concrete success metric. Stored in `VISION.md`. Above version numbers entirely — it answers *why this project exists* | A feature list or PRD |
 | **Milestone** | A capability checkpoint that tests the vision hypothesis. Answers "what can the user do now that they couldn't before?" Stored in `MILESTONES.md`. The MVP boundary defines which milestones constitute v1.0 | A release (milestones define *what's done*, releases define *what ships*) |
-| **Architecture** | The components a milestone needs and how they connect. Scoped per milestone — each milestone produces a **working draft** (`<MILESTONE>_ARCH.md`). On milestone completion, working drafts are **rolled up** into canonical arch docs (`ARCH.md`, `<SUBSYSTEM>_ARCH.md`, or `<CONCERN>_ARCH.md`). The canonical set always represents the current system state | A full system design (architecture is revealed incrementally, not designed all at once) |
+| **Architecture** | The components a milestone needs and how they connect. Scoped per milestone — each milestone produces **delta docs** in `docs/milestones/<name>/` describing only what changes. On milestone completion, deltas are **rolled up** into canonical arch docs: `docs/ARCH.md` (top-level) and `docs/arch/` (subsystems, concerns, apps with possible sub-composition). The canonical set always represents the current system state | A full system design (architecture is revealed incrementally, not designed all at once) |
 | **Design** | Detailed specification of a single component: interfaces, data models, error states. The last planning artifact before code. Stored under `docs/detailed_design/<Phase_Name>/<component>.md` | Implementation code (design shows contracts and boundaries, not internals) |
 
 ### Delivery Entities
@@ -161,7 +161,7 @@ Pre-MVP milestones are `0.x.0` (M1 = 0.1.0, M2 = 0.2.0). MVP completion = `1.0.0
 |-------|---------------------|--------|
 | `vision` | L1 | `VISION.md` |
 | `milestones` | L2 | `MILESTONES.md` |
-| `architecture` | L3 | `<MILESTONE>_ARCH.md` (working draft) → rolled up into canonical docs on milestone completion |
+| `architecture` | L3 | `docs/milestones/<name>/ARCH.md` (delta) → rolled up into `docs/ARCH.md` + `docs/arch/` on milestone completion |
 | `design` | L4 | `docs/detailed_design/<Phase_Name>/<component>.md` |
 
 ## Background Process Types
