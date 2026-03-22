@@ -175,6 +175,20 @@ export const kpiSnapshots = sqliteTable("kpi_snapshots", {
     .$defaultFn(() => new Date().toISOString()),
 })
 
+export const chatMessages = sqliteTable("chat_messages", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  actionProposed: text("action_proposed"),
+  actionExecuted: integer("action_executed").notNull().default(0),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+})
+
 export const deployEvents = sqliteTable("deploy_events", {
   id: text("id").primaryKey(),
   projectId: text("project_id")

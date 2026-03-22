@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { AgentCard } from "@/components/agent-card"
 import { AgentOutput } from "@/components/agent-output"
 import { ProcessStatusPanel } from "@/components/process-status"
+import { OrchestratorChat } from "@/components/orchestrator-chat"
 import {
   ArrowLeftIcon,
   ArchiveIcon,
@@ -345,6 +346,7 @@ export default function ProjectDetailPage({
           <TabsTrigger value="docs">Docs</TabsTrigger>
           <TabsTrigger value="phases">Phases</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="deploys" disabled>
             Deploys
           </TabsTrigger>
@@ -487,11 +489,17 @@ export default function ProjectDetailPage({
           )}
         </TabsContent>
 
+        <TabsContent value="chat" className="mt-4">
+          <Card>
+            <OrchestratorChat projectId={id} />
+          </Card>
+        </TabsContent>
+
         <TabsContent value="deploys" className="mt-4">
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">
-                Deployment management will be available in Phase 3.
+                Deployment management will be available in a future version.
               </p>
             </CardContent>
           </Card>
