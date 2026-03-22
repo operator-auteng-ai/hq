@@ -6,6 +6,7 @@ export const projects = sqliteTable("projects", {
   prompt: text("prompt").notNull(),
   visionHypothesis: text("vision_hypothesis"),
   successMetric: text("success_metric"),
+  collaborationProfile: text("collaboration_profile").default("operator"),
   status: text("status").notNull().default("draft"),
   workspacePath: text("workspace_path"),
   deployUrl: text("deploy_url"),

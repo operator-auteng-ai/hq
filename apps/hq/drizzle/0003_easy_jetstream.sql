@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `collaboration_profile` text DEFAULT 'operator';

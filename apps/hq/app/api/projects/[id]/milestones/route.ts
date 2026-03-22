@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getDb, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { getDeliveryTracker } from "@/lib/services/delivery-tracker"
+import { getOrchestrator } from "@/lib/services/orchestrator"
 import { z } from "zod"
 
 type RouteParams = { params: Promise<{ id: string }> }
@@ -78,105 +79,27 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const body = await request.json()
     const parsed = actionSchema.parse(body)
+    const orchestrator = getOrchestrator()
     const tracker = getDeliveryTracker()
 
     switch (parsed.action) {
-      case "startTask": {
-        const task = tracker.updateTaskStatus(parsed.taskId, "in_progress")
-        // Ensure phase and milestone are active
-        const phase = db
-          .select()
-          .from(schema.phases)
-          .where(eq(schema.phases.id, task.phaseId))
-          .get()
-        if (phase && phase.status === "pending") {
-          tracker.updatePhaseStatus(phase.id, "active")
-          const milestone = db
-            .select()
-            .from(schema.milestones)
-            .where(eq(schema.milestones.id, phase.milestoneId))
-            .get()
-          if (milestone && milestone.status === "pending") {
-            tracker.updateMilestoneStatus(milestone.id, "active")
-          }
-        }
-        return NextResponse.json({ taskId: task.id, status: task.status })
-      }
+      case "startTask":
+        return NextResponse.json(
+          await orchestrator.startTask(parsed.taskId),
+        )
 
-      case "startPhase": {
-        const tasks = tracker.getTasks(parsed.phaseId)
-        const pendingTasks = tasks.filter((t) => t.status === "pending")
-        if (pendingTasks.length === 0) {
-          return NextResponse.json(
-            { error: "No pending tasks in this phase" },
-            { status: 400 },
-          )
-        }
-        // Activate the phase
-        const phase = db
-          .select()
-          .from(schema.phases)
-          .where(eq(schema.phases.id, parsed.phaseId))
-          .get()
-        if (phase && phase.status === "pending") {
-          tracker.updatePhaseStatus(phase.id, "active")
-          const milestone = db
-            .select()
-            .from(schema.milestones)
-            .where(eq(schema.milestones.id, phase.milestoneId))
-            .get()
-          if (milestone && milestone.status === "pending") {
-            tracker.updateMilestoneStatus(milestone.id, "active")
-          }
-        }
-        return NextResponse.json({
-          phaseId: parsed.phaseId,
-          pendingTasks: pendingTasks.length,
-        })
-      }
+      case "startPhase":
+        return NextResponse.json(
+          await orchestrator.startPhase(parsed.phaseId),
+        )
 
-      case "approvePhase": {
-        const phase = db
-          .select()
-          .from(schema.phases)
-          .where(eq(schema.phases.id, parsed.phaseId))
-          .get()
-        if (!phase) {
-          return NextResponse.json(
-            { error: "Phase not found" },
-            { status: 404 },
-          )
-        }
-        // Force-approve: allow from reviewing, review_failed, or active
-        if (
-          phase.status === "reviewing" ||
-          phase.status === "review_failed"
-        ) {
-          db.update(schema.phases)
-            .set({
-              status: "completed",
-              completedAt: new Date().toISOString(),
-            })
-            .where(eq(schema.phases.id, parsed.phaseId))
-            .run()
-          tracker.checkMilestoneCompletion(phase.milestoneId)
-        } else if (phase.status !== "completed") {
-          return NextResponse.json(
-            { error: `Cannot approve phase in status: ${phase.status}` },
-            { status: 400 },
-          )
-        }
-
-        // Find next phase
-        const allPhases = tracker.getPhases(phase.milestoneId)
-        const currentIdx = allPhases.findIndex((p) => p.id === parsed.phaseId)
-        const nextPhase = allPhases[currentIdx + 1]
-
-        return NextResponse.json({ nextPhaseId: nextPhase?.id })
-      }
+      case "approvePhase":
+        return NextResponse.json(
+          await orchestrator.approvePhase(parsed.phaseId),
+        )
 
       case "rejectPhase": {
-        tracker.resetPhaseForRework(parsed.phaseId)
+        await orchestrator.rejectPhase(parsed.phaseId)
         return NextResponse.json({
           phaseId: parsed.phaseId,
           status: "active",
@@ -188,28 +111,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ taskId: task.id, status: task.status })
       }
 
-      case "retryTask": {
-        const task = tracker.updateTaskStatus(parsed.taskId, "in_progress")
-        return NextResponse.json({ taskId: task.id, status: task.status })
-      }
-
-      case "approveMilestone": {
-        const milestone = tracker.updateMilestoneStatus(
-          parsed.milestoneId,
-          "completed",
+      case "retryTask":
+        return NextResponse.json(
+          await orchestrator.startTask(parsed.taskId),
         )
-        // Find next milestone
-        const allMilestones = tracker.getMilestones(id)
-        const currentIdx = allMilestones.findIndex(
-          (m) => m.id === parsed.milestoneId,
-        )
-        const nextMilestone = allMilestones[currentIdx + 1]
 
-        return NextResponse.json({
-          milestoneId: milestone.id,
-          nextMilestoneId: nextMilestone?.id,
-        })
-      }
+      case "approveMilestone":
+        return NextResponse.json(
+          await orchestrator.approveMilestone(parsed.milestoneId),
+        )
 
       case "getPhaseReview": {
         const phase = db
