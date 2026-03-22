@@ -14,13 +14,7 @@ import { OrchestratorChat } from "@/components/orchestrator-chat"
 import {
   ArrowLeftIcon,
   ArchiveIcon,
-  RefreshCwIcon,
   FolderIcon,
-  Loader2Icon,
-  PlayIcon,
-  CheckIcon,
-  XIcon,
-  SkipForwardIcon,
 } from "lucide-react"
 
 interface Project {
@@ -34,12 +28,29 @@ interface Project {
   updatedAt: string
 }
 
-interface Phase {
-  phaseNumber: number
-  name: string
-  description: string | null
-  exitCriteria: string | null
-  status: string
+interface MilestoneTree {
+  milestones: Array<{
+    id: string
+    name: string
+    status: string
+    isMvpBoundary: number
+    phases: Array<{
+      id: string
+      name: string
+      status: string
+      tasks: Array<{
+        id: string
+        title: string
+        status: string
+      }>
+    }>
+  }>
+  progress: {
+    totalMilestones: number
+    completedMilestones: number
+    totalTasks: number
+    completedTasks: number
+  }
 }
 
 interface AgentRun {
@@ -74,10 +85,8 @@ export default function ProjectDetailPage({
   const [docs, setDocs] = useState<ProjectDocs | null>(null)
   const [loading, setLoading] = useState(true)
   const [docsLoading, setDocsLoading] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [genStatus, setGenStatus] = useState("")
-  const [genError, setGenError] = useState("")
-  const [phases, setPhases] = useState<Phase[]>([])
+  const [error, setError] = useState("")
+  const [milestones, setMilestones] = useState<MilestoneTree | null>(null)
   const [agents, setAgents] = useState<AgentRun[]>([])
   const [viewingOutput, setViewingOutput] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("docs")
@@ -85,7 +94,10 @@ export default function ProjectDetailPage({
   useEffect(() => {
     loadProject()
     loadAgents()
-    const interval = setInterval(loadAgents, 3000)
+    const interval = setInterval(() => {
+      loadAgents()
+      loadMilestones()
+    }, 3000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
@@ -103,14 +115,14 @@ export default function ProjectDetailPage({
 
     if (data.workspacePath) {
       loadDocs()
-      loadPhases()
+      loadMilestones()
     }
   }
 
-  async function loadPhases() {
-    const res = await fetch(`/api/projects/${id}/phases`)
+  async function loadMilestones() {
+    const res = await fetch(`/api/projects/${id}/milestones`)
     if (res.ok) {
-      setPhases(await res.json())
+      setMilestones(await res.json())
     }
   }
 
@@ -130,42 +142,6 @@ export default function ProjectDetailPage({
     }
   }
 
-  const [startingPhase, setStartingPhase] = useState<number | null>(null)
-
-  async function handleStartPhase(phaseNumber: string) {
-    const num = parseInt(phaseNumber, 10)
-    setGenError("")
-    setStartingPhase(num)
-    try {
-      const res = await fetch(`/api/projects/${id}/phases`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phaseNumber: num, action: "start" }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to start phase" }))
-        setGenError(err.error || `Phase start failed (${res.status})`)
-        return
-      }
-      const data = await res.json()
-      setViewingOutput(data.agentId)
-      setActiveTab("agents")
-      loadAgents()
-      loadPhases()
-    } finally {
-      setStartingPhase(null)
-    }
-  }
-
-  async function handlePhaseAction(phaseNumber: string, action: string) {
-    await fetch(`/api/projects/${id}/phases`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phaseNumber: parseInt(phaseNumber, 10), action }),
-    })
-    loadPhases()
-  }
-
   async function handleCancelAgent(agentId: string) {
     await fetch(`/api/agents/${agentId}`, { method: "DELETE" })
     loadAgents()
@@ -178,71 +154,6 @@ export default function ProjectDetailPage({
       setViewingOutput(data.agentId)
     }
     loadAgents()
-  }
-
-  async function handleGenerate() {
-    if (!project || generating) return
-    setGenerating(true)
-    setGenStatus("Starting...")
-    setGenError("")
-
-    try {
-      const res = await fetch(`/api/projects/${id}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "sonnet" }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-        setGenError(err.error || `Server error (${res.status})`)
-        return
-      }
-
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-      let errorMessage = ""
-
-      if (reader) {
-        let done = false
-        let nextIsError = false
-        while (!done) {
-          const result = await reader.read()
-          done = result.done
-          if (result.value) {
-            const text = decoder.decode(result.value)
-            for (const line of text.split("\n")) {
-              if (line.startsWith("event: error")) {
-                nextIsError = true
-              }
-              if (line.startsWith("data: ")) {
-                try {
-                  const data = JSON.parse(line.slice(6))
-                  if (nextIsError && data.message) {
-                    errorMessage = data.message
-                    nextIsError = false
-                  } else if (data.message) {
-                    setGenStatus(data.message)
-                  }
-                } catch {
-                  // ignore partial JSON
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (errorMessage) {
-        setGenError(errorMessage)
-      } else {
-        await loadProject()
-      }
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : "Generation failed")
-    } finally {
-      setGenerating(false)
-    }
   }
 
   async function handleArchive() {
@@ -290,24 +201,6 @@ export default function ProjectDetailPage({
           </p>
         </div>
         <div className="flex gap-2">
-          {!hasDocs && (
-            <Button onClick={handleGenerate} disabled={generating}>
-              {generating ? (
-                <>
-                  <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                "Generate Docs"
-              )}
-            </Button>
-          )}
-          {hasDocs && (
-            <Button variant="outline" onClick={handleGenerate} disabled={generating}>
-              <RefreshCwIcon className="mr-2 h-4 w-4" />
-              Regenerate
-            </Button>
-          )}
           <Button variant="outline" onClick={handleArchive}>
             <ArchiveIcon className="mr-2 h-4 w-4" />
             Archive
@@ -315,16 +208,9 @@ export default function ProjectDetailPage({
         </div>
       </div>
 
-      {generating && genStatus && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2Icon className="h-4 w-4 animate-spin" />
-          {genStatus}
-        </div>
-      )}
-
-      {!generating && genError && (
-        <div data-testid="gen-error" className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {genError}
+      {error && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
         </div>
       )}
 
@@ -344,7 +230,7 @@ export default function ProjectDetailPage({
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="docs">Docs</TabsTrigger>
-          <TabsTrigger value="phases">Phases</TabsTrigger>
+          <TabsTrigger value="milestones">Milestones</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
           <TabsTrigger value="chat">Chat</TabsTrigger>
           <TabsTrigger value="deploys" disabled>
@@ -373,77 +259,63 @@ export default function ProjectDetailPage({
           ) : null}
         </TabsContent>
 
-        <TabsContent value="phases" className="mt-4">
-          {phases.length === 0 ? (
+        <TabsContent value="milestones" className="mt-4">
+          {!milestones || milestones.milestones.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <p className="text-muted-foreground">
-                  {hasDocs
-                    ? "No phases found in PLAN.md."
-                    : "No phases yet. Generate docs to create a PLAN.md with phases."}
+                  {project.status === "planning"
+                    ? "Planning in progress — milestones will appear when the pipeline completes."
+                    : "No milestones yet."}
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {phases.map((phase) => (
-                <Card key={phase.phaseNumber}>
-                  <CardContent className="flex items-center justify-between py-4">
-                    <div>
-                      <span className="mr-2 text-xs text-muted-foreground">
-                        Phase {phase.phaseNumber}
-                      </span>
-                      <span className="font-medium">{phase.name}</span>
+            <div className="space-y-4">
+              {milestones.progress && (
+                <div className="text-sm text-muted-foreground">
+                  {milestones.progress.completedMilestones}/{milestones.progress.totalMilestones} milestones,{" "}
+                  {milestones.progress.completedTasks}/{milestones.progress.totalTasks} tasks
+                </div>
+              )}
+              {milestones.milestones.map((milestone) => (
+                <Card key={milestone.id}>
+                  <CardHeader className="py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base">{milestone.name}</CardTitle>
+                        {milestone.isMvpBoundary === 1 && (
+                          <span className="text-xs text-muted-foreground">&larr; MVP</span>
+                        )}
+                      </div>
+                      <StatusBadge status={milestone.status} />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={phase.status} />
-                      {phase.status === "pending" && hasDocs && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={startingPhase === phase.phaseNumber}
-                          onClick={() => handleStartPhase(String(phase.phaseNumber))}
-                        >
-                          {startingPhase === phase.phaseNumber ? (
-                            <>
-                              <Loader2Icon className="mr-1 h-3 w-3 animate-spin" />
-                              Starting...
-                            </>
-                          ) : (
-                            <>
-                              <PlayIcon className="mr-1 h-3 w-3" />
-                              Start
-                            </>
-                          )}
-                        </Button>
-                      )}
-                      {phase.status === "review" && (
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handlePhaseAction(String(phase.phaseNumber), "approve")}
-                          >
-                            <CheckIcon className="mr-1 h-3 w-3" />
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handlePhaseAction(String(phase.phaseNumber), "reject")}
-                          >
-                            <XIcon className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handlePhaseAction(String(phase.phaseNumber), "skip")}
-                          >
-                            <SkipForwardIcon className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                  </CardHeader>
+                  <CardContent className="py-2">
+                    {milestone.phases.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No phases yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {milestone.phases.map((phase) => (
+                          <div key={phase.id} className="rounded-md border p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium">{phase.name}</span>
+                              <StatusBadge status={phase.status} />
+                            </div>
+                            {phase.tasks.length > 0 && (
+                              <div className="space-y-1 ml-2">
+                                {phase.tasks.map((task) => (
+                                  <div key={task.id} className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">{task.title}</span>
+                                    <StatusBadge status={task.status} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

@@ -118,39 +118,32 @@ test.describe("Smoke: Settings API key flow", () => {
   })
 })
 
-test.describe("Smoke: Generate Docs button responds", () => {
-  test("clicking Generate Docs triggers a visible response", async ({ page }) => {
-    // Set a fake key so the pre-flight check passes
-    await page.request.put("/api/settings", {
-      data: { anthropicApiKey: "sk-ant-fake-key-for-testing" },
-    })
-
-    // Create a project
+test.describe("Smoke: Project detail page", () => {
+  test("project detail shows milestones tab and chat tab", async ({ page }) => {
+    const uniqueName = `Smoke Detail ${Date.now()}`
     const res = await page.request.post("/api/projects", {
       data: {
-        name: "Smoke Test Gen",
-        prompt: "A test project to verify generate docs button works end-to-end",
+        name: uniqueName,
+        prompt: "A test project to verify project detail page renders correctly",
       },
     })
     const project = await res.json()
 
-    // Navigate and click generate
     await page.goto(`/projects/${project.id}`)
-    await page.getByRole("button", { name: /generate docs/i }).click()
 
-    // Button should change to "Generating..." (proves hydration + handler works)
-    await expect(page.getByRole("button", { name: /generating/i })).toBeVisible({ timeout: 5000 })
+    // Should show project name
+    await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
 
-    // Wait for the generation to finish — either error banner appears or button re-enables
-    await expect(
-      page.getByRole("button", { name: /generating/i }),
-    ).not.toBeVisible({ timeout: 30000 })
+    // Should have Milestones and Chat tabs
+    await expect(page.getByRole("tab", { name: "Milestones" })).toBeVisible()
+    await expect(page.getByRole("tab", { name: "Chat" })).toBeVisible()
+
+    // Click milestones tab — should show empty state
+    await page.getByRole("tab", { name: "Milestones" }).click()
+    await expect(page.getByText(/no milestones/i)).toBeVisible({ timeout: 3000 })
 
     // Clean up
     await page.request.delete(`/api/projects/${project.id}`)
-    await page.request.put("/api/settings", {
-      data: { anthropicApiKey: "" },
-    })
   })
 })
 

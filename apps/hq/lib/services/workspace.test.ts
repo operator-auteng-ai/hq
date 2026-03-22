@@ -1,18 +1,15 @@
-import { describe, it, expect, afterEach } from "vitest"
+import { describe, it, expect, afterEach, vi } from "vitest"
 import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
 import { execSync } from "node:child_process"
-import { createWorkspace } from "./workspace"
-import type { GeneratedDocs } from "./doc-generator"
 
-const TEST_DOCS: GeneratedDocs = {
-  vision: "# VISION\n\nThis is the vision document.",
-  arch: "# ARCH\n\n## Tech Stack\n\n| Layer | Tech |\n|-------|------|\n| Frontend | React |",
-  plan: "# PLAN\n\n## Phase 0\n\nSetup phase.",
-  taxonomy: "# TAXONOMY\n\nEntity definitions.",
-  codingStandards: "# CODING-STANDARDS\n\nUse TypeScript strict mode.",
-}
+vi.mock("./skill-installer", () => ({
+  installSkills: vi.fn(),
+}))
+
+import { createWorkspace } from "./workspace"
+import { installSkills } from "./skill-installer"
 
 const createdDirs: string[] = []
 
@@ -36,31 +33,19 @@ afterEach(() => {
 describe("createWorkspace", () => {
   it("creates workspace directory at the expected path", async () => {
     const base = createTempBase()
-    const result = await createWorkspace("My Test Project", TEST_DOCS, base)
+    const result = await createWorkspace("My Test Project", base)
 
     expect(result.workspacePath).toBe(path.join(base, "my-test-project"))
     expect(fs.existsSync(result.workspacePath)).toBe(true)
   })
 
-  it("writes all 5 doc files to docs/ directory", async () => {
+  it("creates docs/ subdirectory with empty log files", async () => {
     const base = createTempBase()
-    const result = await createWorkspace("Doc Test", TEST_DOCS, base)
+    const result = await createWorkspace("Log Test", base)
 
     const docsDir = path.join(result.workspacePath, "docs")
-    expect(fs.readFileSync(path.join(docsDir, "VISION.md"), "utf-8")).toBe(TEST_DOCS.vision)
-    expect(fs.readFileSync(path.join(docsDir, "ARCH.md"), "utf-8")).toBe(TEST_DOCS.arch)
-    expect(fs.readFileSync(path.join(docsDir, "PLAN.md"), "utf-8")).toBe(TEST_DOCS.plan)
-    expect(fs.readFileSync(path.join(docsDir, "TAXONOMY.md"), "utf-8")).toBe(TEST_DOCS.taxonomy)
-    expect(fs.readFileSync(path.join(docsDir, "CODING-STANDARDS.md"), "utf-8")).toBe(
-      TEST_DOCS.codingStandards,
-    )
-  })
+    expect(fs.existsSync(docsDir)).toBe(true)
 
-  it("creates empty append-only log files", async () => {
-    const base = createTempBase()
-    const result = await createWorkspace("Log Test", TEST_DOCS, base)
-
-    const docsDir = path.join(result.workspacePath, "docs")
     const progressLog = fs.readFileSync(
       path.join(docsDir, "PLAN_PROGRESS_LOG.md"),
       "utf-8",
@@ -74,9 +59,9 @@ describe("createWorkspace", () => {
     expect(auditLog).toContain("# Workflow Audit Log")
   })
 
-  it("generates CLAUDE.md at workspace root", async () => {
+  it("generates CLAUDE.md with project name and doc read order", async () => {
     const base = createTempBase()
-    const result = await createWorkspace("Claude MD Test", TEST_DOCS, base)
+    const result = await createWorkspace("Claude MD Test", base)
 
     const claudeMd = fs.readFileSync(
       path.join(result.workspacePath, "CLAUDE.md"),
@@ -86,12 +71,19 @@ describe("createWorkspace", () => {
     expect(claudeMd).toContain("Claude MD Test")
     expect(claudeMd).toContain("VISION.md")
     expect(claudeMd).toContain("CODING-STANDARDS.md")
-    expect(claudeMd).toContain("Tech Stack")
+    expect(claudeMd).toContain("ARCH.md")
+  })
+
+  it("calls installSkills with workspace path", async () => {
+    const base = createTempBase()
+    const result = await createWorkspace("Skills Test", base)
+
+    expect(installSkills).toHaveBeenCalledWith(result.workspacePath)
   })
 
   it("initializes a git repo with an initial commit", async () => {
     const base = createTempBase()
-    const result = await createWorkspace("Git Test", TEST_DOCS, base)
+    const result = await createWorkspace("Git Test", base)
 
     // Check .git exists
     expect(fs.existsSync(path.join(result.workspacePath, ".git"))).toBe(true)
@@ -102,12 +94,12 @@ describe("createWorkspace", () => {
       encoding: "utf-8",
     })
     expect(log.trim().split("\n")).toHaveLength(1)
-    expect(log).toContain("init: generated workflow docs")
+    expect(log).toContain("init: workspace scaffold with skills")
   })
 
   it("creates clean git status (no untracked or modified files)", async () => {
     const base = createTempBase()
-    const result = await createWorkspace("Clean Git", TEST_DOCS, base)
+    const result = await createWorkspace("Clean Git", base)
 
     const status = execSync("git status --porcelain", {
       cwd: result.workspacePath,
@@ -118,7 +110,7 @@ describe("createWorkspace", () => {
 
   it("slugifies project name correctly", async () => {
     const base = createTempBase()
-    const result = await createWorkspace("My Cool  SaaS!! App 2.0", TEST_DOCS, base)
+    const result = await createWorkspace("My Cool  SaaS!! App 2.0", base)
 
     expect(result.workspacePath).toContain("my-cool-saas-app-2-0")
   })
@@ -126,8 +118,8 @@ describe("createWorkspace", () => {
   it("handles name collision by appending timestamp", async () => {
     const base = createTempBase()
 
-    const first = await createWorkspace("Collision Test", TEST_DOCS, base)
-    const second = await createWorkspace("Collision Test", TEST_DOCS, base)
+    const first = await createWorkspace("Collision Test", base)
+    const second = await createWorkspace("Collision Test", base)
 
     expect(first.workspacePath).not.toBe(second.workspacePath)
     expect(fs.existsSync(first.workspacePath)).toBe(true)

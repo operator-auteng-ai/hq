@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
-import type { GeneratedDocs } from "./doc-generator"
+import { installSkills } from "./skill-installer"
 
 const DEFAULT_BASE_DIR = path.join(
   process.env.HOME || process.env.USERPROFILE || "~",
@@ -15,16 +15,7 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, "")
 }
 
-function generateClaudeMd(
-  projectName: string,
-  docs: GeneratedDocs,
-): string {
-  // Extract tech stack hints from ARCH.md
-  const techStackMatch = docs.arch.match(/## Tech Stack[\s\S]*?(?=##|$)/i)
-  const techStackSummary = techStackMatch
-    ? techStackMatch[0].trim()
-    : "See docs/ARCH.md for tech stack details."
-
+function generateClaudeMd(projectName: string): string {
   return `# CLAUDE.md
 
 This file provides guidance to Claude Code when working with code in this repository.
@@ -42,8 +33,6 @@ Read the docs in this order for full context:
 4. \`docs/ARCH.md\` — System design, schema, component boundaries
 5. \`docs/PLAN.md\` — Phased implementation plan
 
-${techStackSummary}
-
 ## Logs
 
 - \`docs/PLAN_PROGRESS_LOG.md\` — Append task completions and discoveries here
@@ -57,7 +46,6 @@ export interface WorkspaceResult {
 
 export async function createWorkspace(
   projectName: string,
-  docs: GeneratedDocs,
   baseDir?: string,
 ): Promise<WorkspaceResult> {
   const base = baseDir || DEFAULT_BASE_DIR
@@ -71,30 +59,19 @@ export async function createWorkspace(
   if (fs.existsSync(workspacePath)) {
     // Append timestamp to make unique
     const uniquePath = `${workspacePath}-${Date.now()}`
-    return createWorkspaceAt(uniquePath, projectName, docs)
+    return createWorkspaceAt(uniquePath, projectName)
   }
 
-  return createWorkspaceAt(workspacePath, projectName, docs)
+  return createWorkspaceAt(workspacePath, projectName)
 }
 
 async function createWorkspaceAt(
   workspacePath: string,
   projectName: string,
-  docs: GeneratedDocs,
 ): Promise<WorkspaceResult> {
   // Create directory structure
   const docsDir = path.join(workspacePath, "docs")
   fs.mkdirSync(docsDir, { recursive: true })
-
-  // Write generated docs
-  fs.writeFileSync(path.join(docsDir, "VISION.md"), docs.vision)
-  fs.writeFileSync(path.join(docsDir, "ARCH.md"), docs.arch)
-  fs.writeFileSync(path.join(docsDir, "PLAN.md"), docs.plan)
-  fs.writeFileSync(path.join(docsDir, "TAXONOMY.md"), docs.taxonomy)
-  fs.writeFileSync(
-    path.join(docsDir, "CODING-STANDARDS.md"),
-    docs.codingStandards,
-  )
 
   // Create empty append-only logs
   fs.writeFileSync(
@@ -107,15 +84,18 @@ async function createWorkspaceAt(
   )
 
   // Generate and write CLAUDE.md
-  const claudeMd = generateClaudeMd(projectName, docs)
+  const claudeMd = generateClaudeMd(projectName)
   fs.writeFileSync(path.join(workspacePath, "CLAUDE.md"), claudeMd)
+
+  // Install skills
+  installSkills(workspacePath)
 
   // Initialize git repo and make initial commit
   const execOpts = { cwd: workspacePath, stdio: "pipe" as const }
   execSync("git init", execOpts)
   execSync("git add .", execOpts)
   execSync(
-    'git commit -m "init: generated workflow docs"',
+    'git commit -m "init: workspace scaffold with skills"',
     execOpts,
   )
 

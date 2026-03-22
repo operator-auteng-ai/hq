@@ -17,6 +17,30 @@ export class AgentManager {
   private agents = new Map<string, AgentInstance>()
   private accumulators = new Map<string, OutputAccumulator>()
   private subscribers = new Map<string, StreamSubscriber[]>()
+  private completionCallbacks = new Map<string, Array<(agentId: string, status: AgentRunStatus) => void>>()
+
+  onComplete(
+    agentId: string,
+    callback: (agentId: string, status: AgentRunStatus) => void,
+  ): void {
+    const callbacks = this.completionCallbacks.get(agentId) ?? []
+    callbacks.push(callback)
+    this.completionCallbacks.set(agentId, callbacks)
+  }
+
+  waitForAgent(agentId: string): Promise<AgentRunStatus> {
+    if (!this.agents.has(agentId)) {
+      const db = getDb()
+      const run = db.select().from(schema.agentRuns)
+        .where(eq(schema.agentRuns.id, agentId)).get()
+      if (run && run.status !== "queued" && run.status !== "running") {
+        return Promise.resolve(run.status as AgentRunStatus)
+      }
+    }
+    return new Promise((resolve) => {
+      this.onComplete(agentId, (_id, status) => resolve(status))
+    })
+  }
 
   async spawn(
     agentId: string,
@@ -98,6 +122,7 @@ export class AgentManager {
     // Consume the async generator in the background
     this.consumeStream(agentId, agentQuery).catch((err) => {
       console.error(`Agent ${agentId} stream error:`, err)
+      this.finishAgent(agentId, "failed", undefined, 0)
     })
   }
 
@@ -217,6 +242,19 @@ export class AgentManager {
     }
 
     this.agents.delete(agentId)
+
+    // Invoke completion callbacks
+    const callbacks = this.completionCallbacks.get(agentId)
+    if (callbacks) {
+      for (const cb of callbacks) {
+        try {
+          cb(agentId, status)
+        } catch (err) {
+          console.error(`Agent ${agentId} completion callback error:`, err)
+        }
+      }
+      this.completionCallbacks.delete(agentId)
+    }
   }
 
   cancel(agentId: string): boolean {
@@ -302,6 +340,13 @@ export class AgentManager {
       haiku: "claude-haiku-4-5-20251001",
     }
     const model = modelMap[run.model ?? "sonnet"] ?? run.model ?? "claude-sonnet-4-6"
+
+    // Set API key for resumed session
+    const { getAnthropicApiKey } = await import("@/lib/services/secrets")
+    const apiKey = getAnthropicApiKey()
+    if (apiKey) {
+      process.env.ANTHROPIC_API_KEY = apiKey
+    }
 
     const agentQuery = query({
       prompt: "Continue where you left off.",

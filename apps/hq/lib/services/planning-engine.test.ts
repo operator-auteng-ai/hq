@@ -24,8 +24,10 @@ vi.mock("@/lib/db", async () => {
 })
 
 const mockSpawn = vi.fn().mockResolvedValue(undefined)
+const mockWaitForAgent = vi.fn().mockResolvedValue("completed")
 const mockAgentManager = {
   spawn: mockSpawn,
+  waitForAgent: mockWaitForAgent,
   listByProject: vi.fn().mockReturnValue([]),
   cancel: vi.fn(),
 }

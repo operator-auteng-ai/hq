@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getDb, schema } from "@/lib/db"
 import { createProjectSchema } from "@/lib/validations/project"
 import { eq } from "drizzle-orm"
+import { createWorkspace } from "@/lib/services/workspace"
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,6 +52,17 @@ export async function POST(request: NextRequest) {
         updatedAt: now,
       })
       .run()
+
+    // Create workspace on disk (non-fatal — project exists even if workspace fails)
+    try {
+      const { workspacePath } = await createWorkspace(parsed.data.name)
+      db.update(schema.projects)
+        .set({ workspacePath, updatedAt: new Date().toISOString() })
+        .where(eq(schema.projects.id, id))
+        .run()
+    } catch (wsErr) {
+      console.error(`[POST /api/projects] Workspace creation failed:`, wsErr)
+    }
 
     const project = db
       .select()
