@@ -19,9 +19,11 @@ Phase 2 complete. Agent execution working end-to-end:
 
 ## Future State
 
-See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app distributable as .dmg, with mobile companion app, managing multiple agent-operated businesses.
+See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app that deterministically decomposes product visions into milestones, architecture, design, and tasks, then orchestrates AI agents to build a mid-sized SaaS locally end-to-end.
 
-## Version: v0 (MVP)
+## Version: v0 — Build a Mid-Sized SaaS Locally End-to-End
+
+**Milestone**: Given a product vision, HQ decomposes it through 5 levels (vision → milestones → architecture → design → tasks), executes all tasks via AI agents, and produces a working, tested application locally. No deployment, no monitoring — just deterministic decomposition and local build.
 
 ### Phase 0 — Skeleton ✅
 
@@ -326,58 +328,92 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ---
 
-### Phase 3 — Deployment
+### Phase 3 — Delivery Schema & Tracker
 
-**From**: Code built by agents, sitting locally
-**To**: Projects deployed to cloud with tracked history
+**From**: Phases parsed from PLAN.md at runtime, no milestones or tasks in DB
+**To**: Full delivery-side data model in SQLite with milestone/phase/task/release entities and a state machine for progression
 
 | Task | Description |
 |------|-------------|
-| 3.1 | Deploy Manager: Vercel integration (CLI or API) |
-| 3.2 | Manual or automatic deploy trigger on phase completion |
-| 3.3 | Deploy status tracking and URL capture |
-| 3.4 | Deploy events stored in DB (see ARCH: `deploy_events`) |
-| 3.5 | Deploy history view in project detail |
+| 3.1 | Schema migration: add `milestones`, `phases`, `tasks`, `releases`, `release_milestones` tables (see ARCH.md ERD) |
+| 3.2 | Add `vision_hypothesis` and `success_metric` columns to `projects` |
+| 3.3 | Add `task_id` FK (nullable) to `agent_runs`, deprecate `phase_label` |
+| 3.4 | Delivery Tracker service: `lib/services/delivery-tracker.ts` — state machine for milestone/phase/task status transitions |
+| 3.5 | Task extraction: parse design docs → create task records in DB, linked to phases and source doc |
+| 3.6 | Milestone completion detection: all phases complete → milestone status → `completed` |
+| 3.7 | Release stamping: create release record with semver, link to milestones via join table |
+| 3.8 | API routes: CRUD for milestones, phases, tasks, releases (`/api/projects/:id/milestones`, etc.) |
+| 3.9 | Update orchestrator to use DB-tracked tasks/phases instead of PLAN.md parsing |
+| 3.10 | Tests: delivery tracker state machine, task extraction, milestone completion, release stamping |
 
-**Exit Criteria**: One-click deploy to Vercel from HQ. Deploy URL and history visible in dashboard.
+**Exit Criteria**: Milestones, phases, tasks, and releases are DB entities with proper status transitions. Orchestrator sequences work via delivery tracker instead of markdown parsing. Agent runs link to tasks. Releases can be stamped with semver.
 
-**Feedback**: Validate deploy flow against ARCH.md sequence diagram. Add any new deployment platforms to TAXONOMY.md.
+**Feedback**: Validate state machine covers all edge cases (retry, skip, partial completion). Ensure TAXONOMY.md statuses match implementation.
 
 ---
 
-### Phase 4 — Monitoring & KPIs
+### Phase 4 — Planning Skills
 
-**From**: Deployed but unmonitored projects
-**To**: Live health and business metrics with alerting
+**From**: Doc generation is a single monolithic prompt-to-5-docs pipeline
+**To**: Planning is decomposed into 4 skills (vision, milestones, architecture, design) that agents use to produce workspace files at each decomposition level
 
 | Task | Description |
 |------|-------------|
-| 4.1 | KPI Tracker: define and collect metrics per project |
-| 4.2 | Platform integration for uptime/error data |
-| 4.3 | Dashboard charts and trends (see ARCH: `kpi_snapshots`) |
-| 4.4 | Threshold-based alerting |
+| 4.1 | Vision skill: `skills/vision/SKILL.md` — extracts hypothesis + success metric from user prompt, produces VISION.md |
+| 4.2 | Milestone skill: `skills/milestones/SKILL.md` — decomposes vision into ordered milestones with MVP boundary, produces MILESTONES.md |
+| 4.3 | Update architecture skill: `skills/architecture/SKILL.md` — already exists, update to work per-milestone (scope architecture to a single milestone's components) |
+| 4.4 | Design skill: `skills/design/SKILL.md` — detailed design per component (interfaces, data models, error states), produces files under `docs/detailed_design/<Phase_Name>/<component>.md` |
+| 4.5 | Planning Engine service: `lib/services/planning-engine.ts` — runs skills in sequence by spawning agents with skill context |
+| 4.6 | Skill installer: copy skills into project workspace on project creation so agents can reference them |
+| 4.7 | Update project creation flow: replace monolithic doc generator with planning engine running skills in sequence (vision → milestones → architecture → design) |
+| 4.8 | Bridge: after design skill completes, extract tasks from `docs/detailed_design/*/` structure and populate delivery schema (Phase 3) |
+| 4.9 | Tests: each skill produces valid output, planning engine sequences correctly, task extraction from design docs |
 
-**Exit Criteria**: Live KPIs on dashboard. Historical trends. Alerts on threshold breach.
+**Exit Criteria**: Project creation runs 4 skills in sequence, producing VISION.md, MILESTONES.md, per-milestone ARCH.md sections, and per-component detailed designs under `docs/detailed_design/<Phase_Name>/`. Tasks are extracted from the design directory structure and populated in the delivery schema. Skills are installable and improvable independently.
 
-**Feedback**: Review which KPIs actually matter vs. what was planned. Update VISION.md success metrics if needed.
+**Feedback**: Evaluate quality of generated docs at each level. Compare against monolithic doc generator output. Tune skill prompts based on results.
 
 ---
 
-### Phase 5 — Multi-Project Orchestration
+### Phase 5 — Orchestrator Chat
 
-**From**: Works for individual projects
-**To**: Smooth management of 10+ concurrent projects
+**From**: Users interact with the orchestrator only via UI buttons (start/approve/reject/skip)
+**To**: Conversational interface on the project page for querying status, controlling the pipeline, and approving milestones
 
 | Task | Description |
 |------|-------------|
-| 5.1 | Aggregate dashboard overview (cross-project stats) |
-| 5.2 | Agent concurrency limits and resource management |
-| 5.3 | Cross-project search, filtering, bulk actions |
-| 5.4 | Performance optimization for concurrent agent processes |
+| 5.1 | Chat API route: `POST /api/projects/:id/chat` — Claude API call with project state as context (milestones, tasks, recent agent outputs, workspace docs) |
+| 5.2 | Chat message persistence: store conversation history per project (new `chat_messages` table or append to existing) |
+| 5.3 | Context builder: assemble project state into system prompt — milestone statuses, active tasks, recent failures, workspace file listing |
+| 5.4 | Action extraction: parse chat responses for orchestrator actions (start task, skip milestone, retry, re-plan) and execute them |
+| 5.5 | Chat UI component on project page: message list, input, streaming responses, action confirmation prompts |
+| 5.6 | SSE streaming for chat responses (reuse existing SSE infrastructure) |
+| 5.7 | Tests: context builder, action extraction, chat API route |
 
-**Exit Criteria**: 10 projects running concurrently without UI lag. Bulk operations work reliably.
+**Exit Criteria**: User can chat with the orchestrator on any project page. Chat understands project state (milestones, tasks, failures). User can ask questions ("why did task X fail?", "what's blocking M2?") and issue commands ("start the next milestone", "skip this task", "re-run the architecture skill for M2") conversationally. Actions require confirmation before execution.
 
-**Feedback**: Full v0 version feedback (see WORKFLOW.md). Reconcile all docs against built system. Seed `docs/v1/` if next version is planned.
+**Feedback**: Evaluate chat quality — does it understand project state accurately? Are action extractions reliable? Tune context builder to include the right amount of state without overwhelming the context window.
+
+---
+
+### Phase 6 — End-to-End Integration & Hardening
+
+**From**: All pieces exist but haven't been tested as a complete pipeline
+**To**: A user types a vision prompt, HQ runs the full 5-level decomposition, executes all tasks, and produces a working local application
+
+| Task | Description |
+|------|-------------|
+| 6.1 | End-to-end smoke test: vision prompt → skills pipeline → task extraction → agent execution → working local app |
+| 6.2 | Phase retry and error recovery: failed tasks can be retried, failed phases roll back gracefully |
+| 6.3 | Progress dashboard: project detail view shows milestone/phase/task tree with live status, completion percentages |
+| 6.4 | Update TAXONOMY.md with new entities (milestones, tasks, releases) and statuses |
+| 6.5 | Update CLAUDE.md generation for project workspaces to reflect new skill-based workflow |
+| 6.6 | Skill quality tuning: iterate on skill prompts based on end-to-end test results |
+| 6.7 | E2E Playwright tests: full pipeline from project creation through task completion |
+
+**Exit Criteria**: A mid-complexity SaaS vision (e.g., "freelancer invoicing with Stripe payments") goes from prompt to locally-running, tested application in <4 hours without human code intervention. All milestones, phases, and tasks tracked in DB. User can monitor and control the pipeline via dashboard and orchestrator chat.
+
+**Feedback**: Full v0 feedback. Reconcile all docs against built system. Identify what's needed for v1 (deployment, monitoring, multi-project).
 
 ---
 
@@ -385,9 +421,28 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 | Feature | Reason |
 |---------|--------|
-| Mobile companion app (React Native / Expo) | Depends on proven desktop workflows. Ship after v0 validates core loop. |
+| Deployment (Vercel/AWS integration, deploy manager) | v0 focuses on local build. Deploy is the next milestone after proving the decomposition pipeline works. |
+| Monitoring & KPIs (health metrics, alerting, threshold tracking) | Requires deployed projects. Ship after v1 deployment works. |
+| Multi-project orchestration (aggregate dashboard, cross-project search, bulk actions) | v0 proves the single-project pipeline. Multi-project is a scale concern for v1+. |
+| Mobile companion app (React Native / Expo) | Depends on proven desktop workflows. Ship after v1 validates core loop. |
 | WebSocket server (Socket.io) | Only needed for mobile real-time sync. |
-| `apps/mobile/` directory | Created when mobile work begins in v1. |
+| Release publishing (push releases to registries, package managers) | Requires deployment infrastructure. |
+
+## Dependency Graph
+
+```mermaid
+graph TD
+    P0["Phase 0: Skeleton ✅"] --> P1["Phase 1: Project Creation ✅"]
+    P1 --> P2["Phase 2: Agent Execution ✅"]
+    P2 --> P299["Phase 2.99: Secure API Keys"]
+    P299 --> P3["Phase 3: Delivery Schema & Tracker"]
+    P299 --> P4["Phase 4: Planning Skills"]
+    P3 --> P5["Phase 5: Orchestrator Chat"]
+    P4 --> P5
+    P3 --> P6["Phase 6: E2E Integration & Hardening"]
+    P4 --> P6
+    P5 --> P6
+```
 
 ## File Structure (Phase 1+2 new files)
 
@@ -405,7 +460,9 @@ apps/hq/
 │   │   └── types.ts
 │   └── services/
 │       ├── doc-generator.ts
-│       └── orchestrator.ts
+│       ├── orchestrator.ts
+│       ├── delivery-tracker.ts      (Phase 3)
+│       └── planning-engine.ts       (Phase 4)
 ├── app/
 │   ├── api/
 │   │   ├── agents/
@@ -414,63 +471,29 @@ apps/hq/
 │   │   │       ├── route.ts      (GET status, DELETE cancel)
 │   │   │       ├── stream/route.ts (GET SSE)
 │   │   │       └── resume/route.ts (POST resume)
-│   │   └── processes/
-│   │       ├── route.ts          (GET list, POST start)
+│   │   ├── processes/
+│   │   │   ├── route.ts          (GET list, POST start)
+│   │   │   └── [id]/
+│   │   │       ├── route.ts      (GET status, DELETE stop)
+│   │   │       └── output/route.ts (GET ring buffer)
+│   │   └── projects/
 │   │       └── [id]/
-│   │           ├── route.ts      (GET status, DELETE stop)
-│   │           └── output/route.ts (GET ring buffer)
+│   │           ├── milestones/route.ts  (Phase 3)
+│   │           └── chat/route.ts        (Phase 5)
 │   ├── projects/
 │   │   ├── new/page.tsx
 │   │   └── [id]/page.tsx
 │   └── agents/page.tsx           (update existing)
-└── components/
-    ├── agent-card.tsx
-    ├── agent-output.tsx
-    ├── process-status.tsx
-    └── project-form.tsx
-```
-
-## Dependency Graph
-
-```mermaid
-graph TD
-    P0["Phase 0: Skeleton ✅"] --> P1["Phase 1: Project Creation ✅"]
-    P1 --> P2["Phase 2: Agent Execution ✅"]
-    P2 --> P299["Phase 2.99: Secure API Keys"]
-    P299 --> P3["Phase 3: Deployment"]
-    P3 --> P4["Phase 4: Monitoring"]
-    P2 --> P5["Phase 5: Multi-Project"]
-```
-
-### Phase 1+2 Task Dependencies
-
-```mermaid
-graph TD
-    P1_1["1.1 New Project UI"] --> P1_2["1.2 Project DB + API"]
-    P1_2 --> P1_3["1.3 Doc Generator"]
-    P1_3 --> P1_4["1.4 Workspace Creation"]
-    P1_2 --> P1_5["1.5 Project List View"]
-    P1_2 --> P1_6["1.6 Project Detail View"]
-
-    P1_4 --> P2["Phase 2"]
-
-    P2_1["2.1 Dependencies"] --> P2_2["2.2 Schema Migration"]
-    P2_1 --> P2_4["2.4 RingBuffer + Types"]
-
-    P2_4 --> P2_3["2.3 ProcessRegistry"]
-    P2_3 --> P2_5["2.5 BackgroundProcessManager"]
-    P2_3 --> P2_7["2.7 AgentManager"]
-
-    P2_5 --> P2_6["2.6 HQ MCP Server"]
-    P2_6 --> P2_7
-    P2_7 --> P2_8["2.8 Output Accumulator"]
-
-    P2_2 --> P2_9["2.9 Agent API Routes"]
-    P2_7 --> P2_9
-    P2_5 --> P2_10["2.10 Process API Routes"]
-
-    P2_9 --> P2_11["2.11 Agent Monitor UI"]
-    P2_10 --> P2_11
-    P2_7 --> P2_12["2.12 Orchestrator"]
-    P2_3 --> P2_13["2.13 Electron Cleanup"]
+├── components/
+│   ├── agent-card.tsx
+│   ├── agent-output.tsx
+│   ├── process-status.tsx
+│   ├── project-form.tsx
+│   ├── orchestrator-chat.tsx     (Phase 5)
+│   └── milestone-tree.tsx        (Phase 6)
+└── skills/                       (Phase 4 — copied into project workspaces)
+    ├── vision/SKILL.md
+    ├── milestones/SKILL.md
+    ├── architecture/SKILL.md     (existing, updated)
+    └── design/SKILL.md
 ```

@@ -23,7 +23,7 @@ HQ implements a five-level decomposition methodology. Planning is top-down; buil
 
 **Delivery (bottom-up — tracked in HQ's database):**
 
-5. **Tasks → Phases → Milestones → Releases** — Tasks come from the detailed design. Phases order them (Foundation, Core, Hardening). Milestones mark capability completion. Releases stamp versions.
+5. **Tasks → Phases → Milestones → Releases** — Tasks come from the detailed design. Phases group and order them into coherent stages of work. Milestones mark capability completion. Releases stamp versions.
 
 Planning produces files. Delivery consumes a database. The two sides are loosely coupled: milestones define "what's done," releases define "what ships."
 
@@ -37,12 +37,12 @@ The delivery side is driven by **HQ's database**. Milestones, phases, tasks, and
 
 ## Target Users
 
-High-agency individuals who want to turn a product idea into revenue. Not developers necessarily — operators, founders, and builders who think in outcomes, not code.
+High-agency individuals who want to turn a product idea into revenue. Not developers necessarily — operators, founders, and builders who think in outcomes, not code. HQ adapts to each user's expertise via configurable collaboration depth — which levels of the decomposition you want to shape vs. let run autonomously.
 
 ### User Profiles
 
-- **Solo builder**: Has a product idea ("invoicing for freelancers"), wants to go from vision to first paying customer without writing code or managing developers
-- **Technical founder**: Uses HQ to rapidly decompose and validate ideas — leverages the structured methodology to move faster than manual planning allows
+- **Solo builder / Product manager**: Has a product idea ("invoicing for freelancers"), collaborates on vision and milestones, lets agents handle architecture, design, and delivery autonomously
+- **Technical founder / Engineer**: Uses HQ to rapidly decompose and validate ideas — collaborates on architecture and design decisions, lets agents handle execution
 
 ## Core Principles
 
@@ -65,7 +65,7 @@ HQ decomposes this:
 - **Design for Stripe adapter**: `createCheckout()`, `handleWebhook()`, `getPaymentStatus()`, `refund()`. Payments table. Error states: Stripe timeout (retry 3x), webhook replay (idempotent), card declined (notify user).
 - **Tasks for M2**: Create payments table + migration, Stripe SDK setup, adapter interface, pay button UI, webhook endpoint, status pipeline, email notification, idempotency, retry logic, refund flow, integration tests.
 
-Agents execute tasks through phases (Foundation → Core → Hardening). When M3 completes, HQ deploys v1.0. When the first freelancer signs up and pays for the tool, that's $1.
+Agents execute tasks through phases (e.g., "Data Model & API", "Payment Flow", "Error Handling & Tests"). When M3 completes, HQ deploys v1.0. When the first freelancer signs up and pays for the tool, that's $1.
 
 ## Pricing
 

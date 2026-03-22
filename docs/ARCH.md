@@ -49,7 +49,7 @@ graph TB
         V["L1: Vision Skill<br/>→ VISION.md"]
         M["L2: Milestone Skill<br/>→ MILESTONES.md"]
         A["L3: Architecture Skill<br/>→ ARCH.md (per milestone)"]
-        D["L4: Design Skill<br/>→ DESIGN_*.md (per component)"]
+        D["L4: Design Skill<br/>→ detailed_design/*/*.md"]
         V --> M --> A --> D
     end
 
@@ -60,7 +60,7 @@ graph TB
     subgraph Delivery["Delivery (bottom-up — tracked in SQLite)"]
         direction BT
         T["Tasks<br/>(from design docs)"]
-        P["Phases<br/>(Foundation → Core → Hardening)"]
+        P["Phases<br/>(coherent stages of work)"]
         MS["Milestones<br/>(capability checkpoints)"]
         R["Releases<br/>(semver-stamped)"]
         T --> P --> MS -.->|"loosely coupled"| R
@@ -74,6 +74,32 @@ graph TB
 **Delivery artifacts** live in HQ's SQLite database. Milestones, phases, tasks, and releases are structured entities with statuses, ordering, and relationships. The orchestrator sequences work, assigns agents to tasks, and stamps releases. This enables real-time dashboards, progress tracking, and automated phase transitions.
 
 **The bridge** is task extraction: HQ reads completed design documents and creates task records in the database, linking each task back to its source design doc. This is where planning meets delivery.
+
+### Collaboration Depth
+
+Not every user wants to collaborate at every level. A product manager cares about vision and milestones but wants architecture, design, and delivery to run autonomously. An engineer wants to collaborate on architecture and design but is happy to let the agent handle vision framing. HQ makes this configurable per project via a **collaboration profile** that controls which levels pause for user review.
+
+| Level | Collaborative | Autonomous |
+|-------|--------------|------------|
+| **L1: Vision** | User reviews and refines hypothesis + success metric via chat or direct edit | Agent generates VISION.md, proceeds immediately |
+| **L2: Milestones** | User reviews milestone list, reorders, adjusts MVP boundary, adds/removes | Agent generates MILESTONES.md, proceeds immediately |
+| **L3: Architecture** | User reviews component breakdown, suggests alternatives | Agent generates ARCH.md per milestone, proceeds immediately |
+| **L4: Design** | User reviews interfaces, data models, error states | Agent generates `detailed_design/` docs, proceeds immediately |
+| **L5: Delivery** | Milestone gates (approve/reject on completion) | Tasks execute and milestones auto-complete |
+
+Three built-in presets, configurable per project:
+
+| Preset | Collaborative at | Autonomous at | Best for |
+|--------|-----------------|---------------|----------|
+| **Operator** | Vision, Milestones | Architecture, Design, Delivery | Product managers, non-technical founders — shape *what* to build, let agents decide *how* |
+| **Architect** | Vision, Milestones, Architecture, Design | Delivery | Engineers — collaborate on technical decisions, let agents execute |
+| **Full auto** | Vision | Milestones, Architecture, Design, Delivery | Maximum speed — review the vision, then let it run |
+
+Vision is always collaborative by default — it's the user's bet, and getting it wrong wastes everything downstream. Users can override any preset to make individual levels collaborative or autonomous.
+
+When a level is collaborative, the orchestrator pauses after the skill completes and presents the output for review via the orchestrator chat. The user can refine, regenerate, or approve. When autonomous, the orchestrator proceeds to the next level immediately.
+
+Milestone gates (approve/reject on milestone completion) are separate from collaboration depth — they're always available regardless of preset, but in autonomous delivery mode they auto-approve unless the user intervenes.
 
 ## Component Architecture
 
@@ -168,41 +194,51 @@ sequenceDiagram
     HQ->>HQ: Create project + workspace
 
     rect rgb(240, 238, 250)
-    Note over PE,A: Level 1 — Vision
+    Note over U,A: Level 1 — Vision (always collaborative)
     HQ->>PE: Run vision skill
     PE->>A: Spawn agent with vision skill
     A-->>PE: VISION.md (hypothesis + success metric)
+    HQ->>U: Present vision for review
+    U-->>HQ: Refine via chat or direct edit
     end
 
     rect rgb(225, 245, 238)
-    Note over PE,A: Level 2 — Milestones
+    Note over U,A: Level 2 — Milestones (collaborative if profile allows)
     HQ->>PE: Run milestone skill
     PE->>A: Spawn agent with milestone skill
     A-->>PE: MILESTONES.md (MVP boundary, ordered milestones)
+    alt Collaborative
+        HQ->>U: Present milestones for review
+        U-->>HQ: Refine (reorder, add, remove, adjust MVP boundary)
+    end
     HQ->>DT: Create milestone records in DB
     end
 
     loop Each Milestone
         rect rgb(230, 241, 251)
-        Note over PE,A: Level 3 — Architecture
+        Note over PE,A: Level 3 — Architecture (collaborative if profile allows)
         HQ->>PE: Run architecture skill (for this milestone)
         PE->>A: Spawn agent with architecture skill
         A-->>PE: ARCH.md updates (components for this milestone)
+        alt Collaborative
+            HQ->>U: Present architecture for review
+            U-->>HQ: Refine via chat or direct edit
+        end
         end
 
         loop Each Component
             rect rgb(250, 236, 231)
-            Note over PE,A: Level 4 — Design
+            Note over PE,A: Level 4 — Design (collaborative if profile allows)
             HQ->>PE: Run design skill (for this component)
             PE->>A: Spawn agent with design skill
-            A-->>PE: DESIGN_*.md (interfaces, data model, errors)
+            A-->>PE: detailed_design/*/*.md (interfaces, data model, errors)
             end
         end
 
         rect rgb(250, 238, 218)
         Note over DT,DA: Level 5 — Tasks & Delivery
         HQ->>DT: Extract tasks from design docs → DB
-        DT->>DT: Create phases (Foundation, Core, Hardening)
+        DT->>DT: Create phases (from design docs or milestone structure)
 
         loop Each Phase → Each Task
             DT->>AM: Assign agent to task
@@ -214,7 +250,7 @@ sequenceDiagram
         end
 
         DT->>DT: Milestone complete
-        HQ->>U: Approval gate (or via orchestrator chat)
+        HQ->>U: Milestone gate
         U-->>HQ: Approve / reject
         end
     end
@@ -267,7 +303,7 @@ erDiagram
     phases {
         text id PK
         text milestone_id FK
-        text name "e.g. Foundation, Core, Hardening"
+        text name "e.g. Data Model & API, Payment Flow, Error Handling & Tests"
         text description
         int sort_order
         text status "pending | active | review | feedback | completed | failed"
