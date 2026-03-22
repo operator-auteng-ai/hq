@@ -369,7 +369,7 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 | 4.8 | Bridge: after design skill completes, extract tasks from `docs/detailed_design/*/` structure and populate delivery schema (Phase 3) |
 | 4.9 | Tests: each skill produces valid output, planning engine sequences correctly, task extraction from design docs |
 
-**Exit Criteria**: Project creation runs 4 skills in sequence, producing VISION.md, MILESTONES.md, per-milestone ARCH.md sections, and per-component detailed designs under `docs/detailed_design/<Phase_Name>/`. Tasks are extracted from the design directory structure and populated in the delivery schema. Skills are installable and improvable independently.
+**Exit Criteria**: Project creation runs 4 skills in sequence, producing VISION.md, MILESTONES.md, per-milestone architecture docs (`<MILESTONE>_ARCH.md`), and per-component detailed designs under `docs/detailed_design/<Phase_Name>/`. Tasks are extracted from the design directory structure and populated in the delivery schema. Skills are installable and improvable independently.
 
 **Feedback**: Evaluate quality of generated docs at each level. Compare against monolithic doc generator output. Tune skill prompts based on results.
 
