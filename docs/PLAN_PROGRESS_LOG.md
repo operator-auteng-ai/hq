@@ -389,3 +389,118 @@
 - **Completed**: Tasks 4.1–4.7, 4.9. All skills created, planning engine functional, project creation flow updated, 23 new tests.
 - **Remaining**: Task 4.8 (full pipeline chaining). The planning engine can run individual skills and initiate the pipeline, but cannot automatically chain vision → milestones → architecture → design → task extraction because `AgentManager.spawn()` is fire-and-forget with no completion callback. This is an orchestrator-rewrite concern — adding `onComplete` to AgentManager will unblock it.
 - **Note**: The old `/generate` endpoint and doc generator are kept for backwards compatibility. The `/plan` endpoint is the new default. Skills are installable and improvable independently as designed.
+
+### v0 / Phase 5 — Complete
+- **Exit Criteria Met**:
+  - ✅ User can chat with the orchestrator on any project page (Chat tab)
+  - ✅ Chat understands project state (context builder assembles milestone tree, failures, available actions)
+  - ✅ User can ask questions — context includes failure details with agent output
+  - ✅ User can issue commands — action extraction parses 8 action types from assistant responses
+  - ✅ Actions require confirmation before execution (confirmation cards in UI, `/chat/confirm` endpoint)
+- **Implementation**: `chat_messages` table + migration, `context-builder.ts`, `action-extractor.ts`, `/chat` API routes (POST streaming, GET history, POST confirm), `orchestrator-chat.tsx` component wired into project page
+- **Testing**: 15 new tests (7 action extractor + 8 context builder). 198 total at time of completion.
+
+### v0 / Phase 6 / Task 6.1 — Agent completion callbacks
+- **Action**: Added `onComplete(agentId, callback)` and `waitForAgent(agentId): Promise<AgentRunStatus>` to `AgentManager`. Callbacks invoked from `finishAgent()` after DB update, SSE close, and registry unregister. `waitForAgent` resolves immediately for already-finished agents.
+- **Outcome**: Planning engine and orchestrator can now react when agents complete.
+- **Discovery**: None.
+
+### v0 / Phase 6 / Task 6.2 — Full pipeline chaining
+- **Action**: Rewrote `PlanningEngine.runPipeline()` to chain all skills using `waitForAgent()`: vision → wait → parse VISION.md → milestones → wait → parse MILESTONES.md → create DB records → architecture per milestone → wait → parse components → design per component → wait → task extraction. Added `extractVisionFields()` to populate `projects.vision_hypothesis` and `success_metric` from VISION.md.
+- **Outcome**: Full planning pipeline runs to completion within a single SSE stream.
+- **Discovery**: The pipeline runs synchronously within the SSE stream — the route keeps the connection open while all skills execute. This means project creation can take several minutes. Acceptable for v0.
+
+### v0 / Phase 6 / Task 6.3 — Remove old doc generator
+- **Action**: Deleted `doc-generator.ts`, `doc-generator.test.ts`, `app/api/projects/[id]/generate/route.ts`. Verified no references remain in codebase.
+- **Outcome**: Single path for project planning — the planning engine via `/plan`.
+- **Discovery**: None.
+
+### v0 / Phase 6 / Task 6.4 — Remove old phase parser
+- **Action**: Deleted `phase-parser.ts`, `phase-parser.test.ts`. Orchestrator methods stubbed to throw migration error. Phases route GET handler now returns delivery tracker tree instead of parsing PLAN.md.
+- **Outcome**: Phases come from DB only. No more markdown parsing for delivery state.
+- **Discovery**: None.
+
+### v0 / Phase 6 / Task 6.5 — Workspace creation update
+- **Action**: Simplified `createWorkspace()` to: create directory + docs/ + empty logs + minimal CLAUDE.md + install skills + git init. Removed `GeneratedDocs` parameter. Project POST handler now creates workspace at project creation time (non-fatal if skills install fails).
+- **Outcome**: Workspace exists before planning pipeline starts. Skills available for agents.
+- **Discovery**: None.
+
+### v0 / Phase 6 / Task 6.6 — Project detail page update
+- **Action**: Removed old phases tab (PLAN.md parsing), "Generate Docs" button, `handleGenerate()`. Added milestones tab showing milestone/phase/task tree from delivery tracker. Polls `/api/projects/:id/milestones` alongside agents. Removed unused icon imports.
+- **Outcome**: Project detail page shows delivery tracker state, not markdown-parsed phases.
+- **Discovery**: None.
+
+### v0 / Phase 6 / Task 6.7 — Agent spawn error visibility
+- **Action**: `consumeStream()` catch handler now calls `finishAgent("failed")` instead of just logging. Agent completion callbacks fire on failure, so the pipeline can react.
+- **Outcome**: Failed agents visible in DB and UI, not stuck in "queued" forever.
+- **Discovery**: None.
+
+### v0 / Phase 6 / Task 6.8 — Resume API key fix
+- **Action**: `AgentManager.resume()` now retrieves API key via `getAnthropicApiKey()` and sets `process.env.ANTHROPIC_API_KEY` before calling `query()`.
+- **Outcome**: Resumed agents use the stored API key.
+- **Discovery**: None.
+
+### v0 / Phase 6 / Testing — E2E tests updated
+- **Action**: Rewrote `e2e/error-paths.spec.ts` and `e2e/smoke.spec.ts` to match new UI (milestones tab, no generate button, chat validation). Used unique project names to avoid stale data collisions.
+- **Outcome**: 11 Playwright E2E tests passing. 172 unit tests passing. TypeScript clean.
+- **Discovery**: None.
+
+### v0 / Phase 6 — Complete
+- **Exit Criteria Met**:
+  - ✅ Planning pipeline runs all 4 skills to completion via completion callbacks
+  - ✅ Milestones, phases, and tasks populated in DB from design docs
+  - ✅ Project detail shows milestone tree from delivery tracker
+  - ✅ No dead code from old doc generator or phase parser
+  - ✅ Agent spawn errors visible (not stuck in queued)
+  - ✅ Resume sets API key
+- **Files deleted**: 5 (doc-generator.ts, doc-generator.test.ts, phase-parser.ts, phase-parser.test.ts, generate/route.ts)
+- **Net change**: -1095 lines (more deleted than added)
+
+### v0 / Phase 7 / Task 7.1 — Orchestrator rewrite
+- **Action**: Rewrote `orchestrator.ts` from stub to full implementation. `startTask()` loads task→phase→milestone→project chain, updates all statuses, builds task-level prompt, spawns agent with `task_id` FK, registers completion callback. `onAgentCompleted()` updates task status, checks phase cascade, auto-advances to next pending task.
+- **Outcome**: Orchestrator drives delivery through the delivery tracker with task-level granularity.
+- **Discovery**: None.
+
+### v0 / Phase 7 / Task 7.2 — Task-level agent assignment
+- **Action**: `buildTaskPrompt()` constructs prompts with project name + original prompt, milestone name + description, phase name + description, task title + description, source design doc reference, and standard instructions.
+- **Outcome**: Agents receive focused, context-rich prompts for individual tasks.
+- **Discovery**: None.
+
+### v0 / Phase 7 / Task 7.3 — Phase review triggering
+- **Action**: `triggerPhaseReview()` spawns a review agent with exit criteria (from phase record or defaults: tests pass, no lint errors, code compiles). Review agent outputs JSON in a code fence. On completion, orchestrator parses result: pass → phase completed + milestone cascade check. Fail → phase review_failed + fix-up tasks created from failed criteria + fix-up tasks auto-started.
+- **Outcome**: Automated phase review with fix-up loop.
+- **Discovery**: None.
+
+### v0 / Phase 7 / Task 7.4 — Milestone completion and arch roll-up
+- **Action**: `approveMilestone()` completes the milestone and calls `triggerArchRollup()` which runs the architecture skill in roll-up mode (`rollup:` prefix) if a milestone arch delta exists. `isFullAuto()` check auto-approves milestones and starts next ones for full_auto projects.
+- **Outcome**: Milestone completion triggers canonical arch doc updates.
+- **Discovery**: None.
+
+### v0 / Phase 7 / Task 7.5 — Collaboration profile integration
+- **Action**: Added `collaboration_profile` column to projects table (text, default "operator"). Migration `0003_easy_jetstream.sql`. `isFullAuto()` helper checks profile. Full auto projects: auto-approve milestones, auto-start next phases after review passes, auto-start fix-up tasks.
+- **Outcome**: Collaboration profiles affect delivery automation level.
+- **Discovery**: None.
+
+### v0 / Phase 7 / Task 7.6 — API route delegation
+- **Action**: Refactored milestones route PATCH handler from inline business logic to thin switch delegating to orchestrator methods: `startTask`, `startPhase`, `approvePhase`, `rejectPhase`, `skipTask` (direct tracker call), `retryTask` (delegates to `startTask`), `approveMilestone`, `getPhaseReview`.
+- **Outcome**: API route is a thin adapter, orchestrator owns all business logic.
+- **Discovery**: None.
+
+### v0 / Phase 7 / Task 7.7 — Tests
+- **Action**: Rewrote `orchestrator.test.ts` with 11 tests: `startTask` (status updates, prompt context, agent_runs record), `onAgentCompleted` (success + ignores non-task agents), `startPhase` (first task + no tasks error), `approvePhase` (finds next), `rejectPhase` (resets tasks), `approveMilestone` (finds next), `skipPhase` (skips + completes).
+- **Outcome**: 179 unit tests + 11 Playwright E2E passing. TypeScript clean.
+- **Discovery**: None.
+
+### v0 / Phase 7 — Complete
+- **Exit Criteria Met**:
+  - ✅ Single orchestrator manages full lifecycle (planning engine for skills, delivery tracker for state)
+  - ✅ Tasks assigned to agents individually with task-level prompts
+  - ✅ Phase completion triggers automated review agent
+  - ✅ Milestone completion triggers arch roll-up
+  - ✅ Collaboration profiles work (full_auto auto-advances)
+  - ✅ API routes delegate to orchestrator
+
+### v0 / Post-Phase 7 / Docs — ARCH.md and PLAN.md sync
+- **Action**: Audited all docs against code. Fixed ARCH.md ERD: added `chat_messages` and `app_settings` tables, added `collaboration_profile` to projects, added `exit_criteria` and `review_result` to phases, fixed phase statuses (`reviewing`/`review_failed` not `review`/`feedback`), added `chat_messages` relationship. Updated orchestration layer descriptions to reflect actual implementation. Updated PLAN.md current state to Phase 7 complete with correct test counts (179 + 11).
+- **Outcome**: All docs in sync with code. No stale references or incorrect claims.
+- **Discovery**: None.
