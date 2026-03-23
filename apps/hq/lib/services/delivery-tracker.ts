@@ -96,6 +96,13 @@ const TASK_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
 }
 
 // ── Delivery Tracker ────────────────────────────────────────────────────
+//
+// Transaction strategy: This class performs multiple sequential DB writes
+// without explicit transactions. This is acceptable because:
+// 1. better-sqlite3 is synchronous — each .run() auto-commits before the next
+// 2. Single Node.js process — no concurrent write contention
+// 3. Failure recovery is straightforward — re-run the operation
+// If the app moves to async DB or multi-process writes, add transactions.
 
 export class DeliveryTracker {
   // ── Milestone operations ──

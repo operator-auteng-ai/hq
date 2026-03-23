@@ -413,83 +413,114 @@ export class Orchestrator {
     })
 
     agentManager.onComplete(agentId, (_id, status) => {
-      if (status !== "completed") return
-
-      const run = db
-        .select()
-        .from(schema.agentRuns)
-        .where(eq(schema.agentRuns.id, agentId))
-        .get()
-      if (!run?.output) return
-
-      const tracker = getDeliveryTracker()
-      try {
-        const outputStr =
-          typeof run.output === "string"
-            ? run.output
-            : JSON.stringify(run.output)
-        const jsonMatch = outputStr.match(/```json\s*([\s\S]*?)\s*```/)
-        if (!jsonMatch) return
-
-        const result = JSON.parse(jsonMatch[1]) as PhaseReviewResult
-        result.timestamp = new Date().toISOString()
-        tracker.setPhaseReviewResult(phaseId, result)
-
-        if (result.overallPass) {
-          tracker.updatePhaseStatus(phaseId, "completed")
-          const milestoneCompleted = tracker.checkMilestoneCompletion(
-            phase.milestoneId,
-          )
-
-          // Auto-start next phase or handle milestone completion
-          if (!milestoneCompleted) {
-            // Find and auto-start next phase
-            const allPhases = tracker.getPhases(phase.milestoneId)
-            const currentIdx = allPhases.findIndex(
-              (p) => p.id === phaseId,
-            )
-            const nextPhase = allPhases[currentIdx + 1]
-            if (nextPhase && nextPhase.status === "pending") {
-              const nextTask = tracker.getNextPendingTask(nextPhase.id)
-              if (nextTask) {
-                this.startPhase(nextPhase.id).catch((err) => {
-                  console.error(
-                    `Auto-start next phase failed:`,
-                    err,
-                  )
-                })
-              }
-            }
-          } else if (this.isFullAuto(milestone.projectId)) {
-            // Full auto: auto-approve milestone and start next
-            this.approveMilestone(milestone.id).catch((err) => {
-              console.error(`Auto-approve milestone failed:`, err)
-            })
-          }
-        } else {
-          tracker.updatePhaseStatus(phaseId, "review_failed")
-          const failedCriteria = result.criteria
-            .filter((c) => !c.passed)
-            .map((c) => ({
-              criterion: c.criterion,
-              suggestedFix: c.suggestedFix,
-            }))
-          if (failedCriteria.length > 0) {
-            tracker.createFixUpTasks(phaseId, failedCriteria)
-            // Auto-start fix-up tasks
-            tracker.updatePhaseStatus(phaseId, "active")
-            const nextFixUp = tracker.getNextPendingTask(phaseId)
-            if (nextFixUp) {
-              this.startTask(nextFixUp.id).catch((err) => {
-                console.error(`Auto-start fix-up task failed:`, err)
-              })
-            }
-          }
-        }
-      } catch {
-        // Failed to parse review — leave in reviewing for user
-      }
+      this.handleReviewResult(phaseId, phase.milestoneId, milestone.projectId, agentId, status)
+        .catch((err) => {
+          console.error(`Review result handler error for phase ${phaseId}:`, err)
+        })
     })
+  }
+
+  private async handleReviewResult(
+    phaseId: string,
+    milestoneId: string,
+    projectId: string,
+    reviewAgentId: string,
+    status: AgentRunStatus,
+  ): Promise<void> {
+    if (status !== "completed") return
+
+    const db = getDb()
+    const run = db
+      .select()
+      .from(schema.agentRuns)
+      .where(eq(schema.agentRuns.id, reviewAgentId))
+      .get()
+    if (!run?.output) return
+
+    const tracker = getDeliveryTracker()
+    const outputStr =
+      typeof run.output === "string"
+        ? run.output
+        : JSON.stringify(run.output)
+    const jsonMatch = outputStr.match(/```json\s*([\s\S]*?)\s*```/)
+    if (!jsonMatch) return
+
+    let result: PhaseReviewResult
+    try {
+      result = JSON.parse(jsonMatch[1]) as PhaseReviewResult
+    } catch {
+      return // Malformed JSON — leave in reviewing for user
+    }
+
+    result.timestamp = new Date().toISOString()
+    tracker.setPhaseReviewResult(phaseId, result)
+
+    if (result.overallPass) {
+      this.handleReviewPassed(phaseId, milestoneId, projectId, tracker)
+    } else {
+      this.handleReviewFailed(phaseId, result, tracker)
+    }
+  }
+
+  private handleReviewPassed(
+    phaseId: string,
+    milestoneId: string,
+    projectId: string,
+    tracker: ReturnType<typeof getDeliveryTracker>,
+  ): void {
+    tracker.updatePhaseStatus(phaseId, "completed")
+    const milestoneCompleted = tracker.checkMilestoneCompletion(milestoneId)
+
+    if (!milestoneCompleted) {
+      this.autoStartNextPhase(phaseId, milestoneId, tracker)
+    } else if (this.isFullAuto(projectId)) {
+      this.approveMilestone(milestoneId).catch((err) => {
+        console.error(`Auto-approve milestone failed:`, err)
+      })
+    }
+  }
+
+  private handleReviewFailed(
+    phaseId: string,
+    result: PhaseReviewResult,
+    tracker: ReturnType<typeof getDeliveryTracker>,
+  ): void {
+    tracker.updatePhaseStatus(phaseId, "review_failed")
+
+    const failedCriteria = result.criteria
+      .filter((c) => !c.passed)
+      .map((c) => ({ criterion: c.criterion, suggestedFix: c.suggestedFix }))
+
+    if (failedCriteria.length === 0) return
+
+    tracker.createFixUpTasks(phaseId, failedCriteria)
+    tracker.updatePhaseStatus(phaseId, "active")
+
+    const nextFixUp = tracker.getNextPendingTask(phaseId)
+    if (nextFixUp) {
+      this.startTask(nextFixUp.id).catch((err) => {
+        console.error(`Auto-start fix-up task failed:`, err)
+      })
+    }
+  }
+
+  private autoStartNextPhase(
+    currentPhaseId: string,
+    milestoneId: string,
+    tracker: ReturnType<typeof getDeliveryTracker>,
+  ): void {
+    const allPhases = tracker.getPhases(milestoneId)
+    const currentIdx = allPhases.findIndex((p) => p.id === currentPhaseId)
+    const nextPhase = allPhases[currentIdx + 1]
+
+    if (!nextPhase || nextPhase.status !== "pending") return
+
+    const nextTask = tracker.getNextPendingTask(nextPhase.id)
+    if (nextTask) {
+      this.startPhase(nextPhase.id).catch((err) => {
+        console.error(`Auto-start next phase failed:`, err)
+      })
+    }
   }
 
   private async triggerArchRollup(milestoneId: string): Promise<void> {

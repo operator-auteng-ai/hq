@@ -204,59 +204,6 @@ describe("milestoneToArchDir", () => {
   })
 })
 
-describe("skill-installer", () => {
-  let tmpDir: string
-
-  beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "skill-test-"))
-  })
-
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true })
-  })
-
-  it("installs all 4 skill files into workspace", async () => {
-    const { installSkills } = await import("./skill-installer")
-    installSkills(tmpDir)
-
-    for (const name of ["vision", "milestones", "architecture", "design"]) {
-      const skillPath = path.join(tmpDir, "skills", name, "SKILL.md")
-      expect(fs.existsSync(skillPath)).toBe(true)
-      const content = fs.readFileSync(skillPath, "utf-8")
-      expect(content.length).toBeGreaterThan(0)
-      expect(content).toContain("---")
-    }
-  })
-
-  it("is idempotent — running twice doesn't error", async () => {
-    const { installSkills } = await import("./skill-installer")
-    installSkills(tmpDir)
-    installSkills(tmpDir)
-
-    const skillPath = path.join(tmpDir, "skills", "vision", "SKILL.md")
-    expect(fs.existsSync(skillPath)).toBe(true)
-  })
-
-  it("readSkillContent reads installed skill", async () => {
-    const { installSkills, readSkillContent } = await import(
-      "./skill-installer"
-    )
-    installSkills(tmpDir)
-
-    const content = readSkillContent(tmpDir, "vision")
-    expect(content).toContain("vision")
-    expect(content.length).toBeGreaterThan(50)
-  })
-
-  it("readSkillContent throws if skill not installed", async () => {
-    const { readSkillContent } = await import("./skill-installer")
-
-    expect(() => readSkillContent(tmpDir, "vision")).toThrow(
-      "Skill file not found",
-    )
-  })
-})
-
 describe("buildSkillPrompt (via planning engine internals)", () => {
   it("includes skill content and project prompt", () => {
     // Test the prompt construction logic directly

@@ -55,6 +55,13 @@ export async function createWorkspace(
   // Ensure base directory exists
   fs.mkdirSync(base, { recursive: true })
 
+  // Path traversal check — resolved path must be under base
+  const resolved = path.resolve(workspacePath)
+  const resolvedBase = path.resolve(base)
+  if (!resolved.startsWith(resolvedBase + path.sep)) {
+    throw new Error(`Workspace path escapes base directory: ${resolved}`)
+  }
+
   // Ensure workspace doesn't already exist
   if (fs.existsSync(workspacePath)) {
     // Append timestamp to make unique
