@@ -18,8 +18,8 @@ export function getSkillsSourceDir(): string {
     return path.join(process.resourcesPath, "skills")
   }
 
-  // Dev: apps/hq is CWD or __dirname context — go up two levels to repo root
-  return path.resolve(__dirname, "..", "..", "..", "..", "skills")
+  // Dev: process.cwd() is apps/hq/ — go up two levels to repo root
+  return path.resolve(process.cwd(), "..", "..", "skills")
 }
 
 /**

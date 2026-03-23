@@ -316,6 +316,7 @@ export function OrchestratorChat({ projectId }: OrchestratorChatProps) {
         />
         <Button
           size="icon"
+          aria-label="Send message"
           onClick={handleSend}
           disabled={!input.trim() || sending}
         >
