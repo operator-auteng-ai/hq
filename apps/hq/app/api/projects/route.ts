@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getDb, schema } from "@/lib/db"
 import { createProjectSchema } from "@/lib/validations/project"
-import { eq } from "drizzle-orm"
+import { eq, not } from "drizzle-orm"
 import { createWorkspace } from "@/lib/services/workspace"
 
 export async function GET(request: NextRequest) {
@@ -11,8 +11,13 @@ export async function GET(request: NextRequest) {
 
     let query = db.select().from(schema.projects)
 
-    if (status && status !== "all") {
+    if (status === "archived") {
+      query = query.where(eq(schema.projects.status, "archived")) as typeof query
+    } else if (status && status !== "all") {
       query = query.where(eq(schema.projects.status, status)) as typeof query
+    } else {
+      // "all" excludes archived by default
+      query = query.where(not(eq(schema.projects.status, "archived"))) as typeof query
     }
 
     const rows = query.orderBy(schema.projects.createdAt).all().reverse()
