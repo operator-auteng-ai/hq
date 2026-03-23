@@ -149,34 +149,30 @@ test.describe("Milestones tab with mocked data", () => {
       },
     )
 
+    // Mock plan endpoint so auto-trigger doesn't hang
+    await page.route(`**/api/projects/${project.id}/plan`, (route) => {
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: "event: complete\ndata: {}\n\n",
+      })
+    })
+
     await page.goto(`/projects/${project.id}`)
     await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
 
-    // Click Milestones tab
-    await page.getByRole("tab", { name: "Milestones" }).click()
+    // Click Tasks level in pipeline nav
+    await page.getByText("Tasks").click()
 
-    // Verify milestone names (scoped to milestones panel to avoid sidebar clash)
-    const milestonesPanel = page.getByRole("tabpanel")
-    await expect(milestonesPanel.getByText("Core Invoicing")).toBeVisible()
-    await expect(milestonesPanel.getByText("Payments")).toBeVisible()
-    await expect(milestonesPanel.getByText("Dashboard")).toBeVisible()
-
-    // Verify MVP marker
-    await expect(page.getByText("← MVP")).toBeVisible()
-
-    // Verify phase names
-    await expect(page.getByText("Data Model")).toBeVisible()
-    await expect(page.getByText("Stripe Integration")).toBeVisible()
-
-    // Verify task names
-    await expect(page.getByText("Create invoices table")).toBeVisible()
-    await expect(page.getByText("Webhook handler")).toBeVisible()
+    // Verify milestone names in the tree
+    await expect(page.getByText("Core Invoicing")).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText("Payments")).toBeVisible()
 
     // Clean up
     await page.request.delete(`/api/projects/${project.id}`)
   })
 
-  test("shows empty state when no milestones", async ({ page }) => {
+  test("shows pipeline nav with pending levels when no milestones", async ({ page }) => {
     const uniqueName = `Empty ${Date.now()}`
     const res = await page.request.post("/api/projects", {
       data: { name: uniqueName, prompt: "Test empty milestone state" },
@@ -202,11 +198,20 @@ test.describe("Milestones tab with mocked data", () => {
       },
     )
 
-    await page.goto(`/projects/${project.id}`)
-    await page.getByRole("tab", { name: "Milestones" }).click()
-    await expect(page.getByText(/no milestones/i)).toBeVisible({
-      timeout: 3000,
+    // Also mock the plan endpoint so auto-trigger doesn't hang
+    await page.route(`**/api/projects/${project.id}/plan`, (route) => {
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: "event: complete\ndata: {}\n\n",
+      })
     })
+
+    await page.goto(`/projects/${project.id}`)
+
+    // Pipeline nav should be visible with levels
+    await expect(page.getByText("Vision")).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText("Tasks")).toBeVisible()
 
     await page.request.delete(`/api/projects/${project.id}`)
   })
@@ -221,6 +226,15 @@ test.describe("Chat UI with mocked streaming", () => {
       data: { name: uniqueName, prompt: "Test chat UI streaming" },
     })
     const project = await res.json()
+
+    // Mock plan endpoint so auto-trigger doesn't hang
+    await page.route(`**/api/projects/${project.id}/plan`, (route) => {
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: "event: complete\ndata: {}\n\n",
+      })
+    })
 
     // Mock GET chat history (empty)
     await page.route(
@@ -270,7 +284,7 @@ test.describe("Chat UI with mocked streaming", () => {
     )
 
     await page.goto(`/projects/${project.id}`)
-    await page.getByRole("tab", { name: "Chat" }).click()
+    // Chat is always visible in the cockpit layout — no need to click a tab
 
     // Type and send a message
     await page
@@ -314,6 +328,15 @@ test.describe("Chat UI with mocked streaming", () => {
       data: { name: uniqueName, prompt: "Test chat cancel action" },
     })
     const project = await res.json()
+
+    // Mock plan endpoint
+    await page.route(`**/api/projects/${project.id}/plan`, (route) => {
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: "event: complete\ndata: {}\n\n",
+      })
+    })
 
     await page.route(
       `**/api/projects/${project.id}/chat`,
@@ -363,7 +386,7 @@ test.describe("Chat UI with mocked streaming", () => {
     )
 
     await page.goto(`/projects/${project.id}`)
-    await page.getByRole("tab", { name: "Chat" }).click()
+    // Chat is always visible in the cockpit layout — no need to click a tab
 
     await page
       .getByPlaceholder(/ask about project status/i)

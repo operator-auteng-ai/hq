@@ -119,7 +119,7 @@ test.describe("Smoke: Settings API key flow", () => {
 })
 
 test.describe("Smoke: Project detail page", () => {
-  test("project detail shows milestones tab and chat tab", async ({ page }) => {
+  test("project detail shows cockpit layout with pipeline nav and chat", async ({ page }) => {
     const uniqueName = `Smoke Detail ${Date.now()}`
     const res = await page.request.post("/api/projects", {
       data: {
@@ -134,13 +134,13 @@ test.describe("Smoke: Project detail page", () => {
     // Should show project name
     await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
 
-    // Should have Milestones and Chat tabs
-    await expect(page.getByRole("tab", { name: "Milestones" })).toBeVisible()
-    await expect(page.getByRole("tab", { name: "Chat" })).toBeVisible()
+    // Should have pipeline nav (cockpit layout)
+    await expect(page.getByText("Vision")).toBeVisible()
+    await expect(page.getByText("Milestones")).toBeVisible()
+    await expect(page.getByText("Tasks")).toBeVisible()
 
-    // Click milestones tab — should show empty state
-    await page.getByRole("tab", { name: "Milestones" }).click()
-    await expect(page.getByText(/no milestones/i)).toBeVisible({ timeout: 3000 })
+    // Chat panel should always be visible (not in a tab)
+    await expect(page.getByText("Orchestrator Chat")).toBeVisible()
 
     // Clean up
     await page.request.delete(`/api/projects/${project.id}`)

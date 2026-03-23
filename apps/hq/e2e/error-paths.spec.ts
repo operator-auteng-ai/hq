@@ -16,10 +16,9 @@ test.describe("Error paths: Project detail page", () => {
     // Verify project page loads
     await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
 
-    // Verify milestones tab exists
-    await expect(
-      page.getByRole("tab", { name: "Milestones" }),
-    ).toBeVisible()
+    // Verify pipeline nav exists (cockpit layout)
+    await expect(page.getByText("Vision")).toBeVisible()
+    await expect(page.getByText("Tasks")).toBeVisible()
 
     // Clean up
     await page.request.delete(`/api/projects/${project.id}`)

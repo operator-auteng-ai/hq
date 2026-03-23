@@ -32,8 +32,6 @@ export function ProjectForm() {
   const [prompt, setPrompt] = useState("")
   const [model, setModel] = useState("sonnet")
   const [submitting, setSubmitting] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [statusMessage, setStatusMessage] = useState("")
   const [error, setError] = useState("")
 
   const canSubmit = name.trim().length > 0 && prompt.trim().length >= 20
@@ -46,7 +44,6 @@ export function ProjectForm() {
     setError("")
 
     try {
-      // Step 1: Create project
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,65 +63,10 @@ export function ProjectForm() {
         throw new Error("No project ID returned")
       }
 
-      // Step 2: Trigger planning pipeline via SSE POST
-      setGenerating(true)
-      setStatusMessage("Starting planning pipeline...")
-
-      const genRes = await fetch(`/api/projects/${projectId}/plan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, collaborationProfile: "full_auto" }),
-      })
-
-      if (!genRes.ok) {
-        // Project was created but planning failed — still redirect
-        router.push(`/projects/${projectId}`)
-        return
-      }
-
-      // Read SSE stream from the POST response
-      const reader = genRes.body?.getReader()
-      const decoder = new TextDecoder()
-
-      if (reader) {
-        let done = false
-        let currentEvent = ""
-        while (!done) {
-          const result = await reader.read()
-          done = result.done
-          if (result.value) {
-            const text = decoder.decode(result.value)
-            const lines = text.split("\n")
-            for (const line of lines) {
-              if (line.startsWith("event: ")) {
-                currentEvent = line.slice(7).trim()
-              } else if (line.startsWith("data: ")) {
-                try {
-                  const eventData = JSON.parse(line.slice(6))
-                  if (currentEvent === "progress") {
-                    let msg = `${eventData.level}: ${eventData.status}`
-                    if (eventData.detail) msg += ` — ${eventData.detail}`
-                    setStatusMessage(msg)
-                  } else if (currentEvent === "complete") {
-                    setStatusMessage("Done! Redirecting...")
-                  } else if (currentEvent === "error") {
-                    setError(eventData.error || "Planning failed")
-                  }
-                } catch {
-                  // ignore parse errors in stream
-                }
-                currentEvent = ""
-              }
-            }
-          }
-        }
-      }
-
       router.push(`/projects/${projectId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong")
       setSubmitting(false)
-      setGenerating(false)
     }
   }
 
@@ -187,19 +129,12 @@ export function ProjectForm() {
             <p className="text-sm text-destructive">{error}</p>
           )}
 
-          {generating && statusMessage && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-              {statusMessage}
-            </div>
-          )}
-
           <div className="flex gap-3">
             <Button type="submit" disabled={!canSubmit || submitting}>
               {submitting ? (
                 <>
                   <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                  {generating ? "Planning..." : "Creating..."}
+                  Creating...
                 </>
               ) : (
                 "Create Project"

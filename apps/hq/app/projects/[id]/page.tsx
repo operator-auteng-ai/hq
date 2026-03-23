@@ -1,21 +1,14 @@
 "use client"
 
-import { useEffect, useState, use } from "react"
+import { useEffect, useState, useCallback, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/status-badge"
-import { AgentCard } from "@/components/agent-card"
-import { AgentOutput } from "@/components/agent-output"
-import { ProcessStatusPanel } from "@/components/process-status"
+import { PipelineNav, type PipelineLevel } from "@/components/pipeline-nav"
+import { MilestoneTree, type MilestoneTreeData } from "@/components/milestone-tree"
 import { OrchestratorChat } from "@/components/orchestrator-chat"
-import {
-  ArrowLeftIcon,
-  ArchiveIcon,
-  FolderIcon,
-} from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ArrowLeftIcon, ArchiveIcon, FolderIcon } from "lucide-react"
 
 interface Project {
   id: string
@@ -28,46 +21,9 @@ interface Project {
   updatedAt: string
 }
 
-interface MilestoneTree {
-  milestones: Array<{
-    id: string
-    name: string
-    status: string
-    isMvpBoundary: number
-    phases: Array<{
-      id: string
-      name: string
-      status: string
-      tasks: Array<{
-        id: string
-        title: string
-        status: string
-      }>
-    }>
-  }>
-  progress: {
-    totalMilestones: number
-    completedMilestones: number
-    totalTasks: number
-    completedTasks: number
-  }
-}
-
-interface AgentRun {
-  id: string
-  projectId: string
-  prompt: string
-  status: string
-  model: string | null
-  turnCount: number | null
-  costUsd: number | null
-  createdAt: string
-  completedAt: string | null
-  sessionId: string | null
-}
-
 interface ProjectDocs {
   vision: string | null
+  milestones: string | null
   arch: string | null
   plan: string | null
   taxonomy: string | null
@@ -82,34 +38,34 @@ export default function ProjectDetailPage({
   const { id } = use(params)
   const router = useRouter()
   const [project, setProject] = useState<Project | null>(null)
-  const [docs, setDocs] = useState<ProjectDocs | null>(null)
   const [loading, setLoading] = useState(true)
-  const [docsLoading, setDocsLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [milestones, setMilestones] = useState<MilestoneTree | null>(null)
-  const [agents, setAgents] = useState<AgentRun[]>([])
-  const [viewingOutput, setViewingOutput] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState("docs")
+  const [docs, setDocs] = useState<ProjectDocs | null>(null)
+  const [milestones, setMilestones] = useState<MilestoneTreeData | null>(null)
+  const [activeLevel, setActiveLevel] = useState<PipelineLevel>("vision")
+  const [pipelineStarted, setPipelineStarted] = useState(false)
 
-  useEffect(() => {
-    loadProject()
-    loadAgents()
-    const interval = setInterval(() => {
-      loadAgents()
-      loadMilestones()
-    }, 3000)
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadMilestones = useCallback(async () => {
+    const res = await fetch(`/api/projects/${id}/milestones`)
+    if (res.ok) {
+      setMilestones(await res.json())
+    }
   }, [id])
 
-  async function loadProject() {
+  const loadDocs = useCallback(async () => {
+    const res = await fetch(`/api/projects/${id}/docs`)
+    if (res.ok) {
+      setDocs(await res.json())
+    }
+  }, [id])
+
+  const loadProject = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/projects/${id}`)
     if (!res.ok) {
       router.push("/projects")
       return
     }
-    const data = await res.json()
+    const data: Project = await res.json()
     setProject(data)
     setLoading(false)
 
@@ -117,51 +73,189 @@ export default function ProjectDetailPage({
       loadDocs()
       loadMilestones()
     }
-  }
+  }, [id, router, loadDocs, loadMilestones])
 
-  async function loadMilestones() {
-    const res = await fetch(`/api/projects/${id}/milestones`)
-    if (res.ok) {
-      setMilestones(await res.json())
+  // Load project on mount
+  useEffect(() => {
+    loadProject()
+  }, [loadProject])
+
+  // Poll milestones every 5s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadMilestones()
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [loadMilestones])
+
+  // Auto-trigger pipeline for draft projects
+  useEffect(() => {
+    if (project?.status === "draft" && !pipelineStarted) {
+      setPipelineStarted(true)
+      fetch(`/api/projects/${id}/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "sonnet", collaborationProfile: "full_auto" }),
+      }).then(() => {
+        // Reload project to get updated status and workspace path
+        loadProject()
+      }).catch(() => {
+        // Pipeline trigger failed, user can retry via chat
+      })
+    }
+  }, [project?.status, pipelineStarted, id, loadProject])
+
+  // Derive completed levels from docs/milestones
+  const completedLevels: PipelineLevel[] = []
+  if (docs?.vision) completedLevels.push("vision")
+  if (milestones && milestones.milestones.length > 0) {
+    completedLevels.push("milestones")
+    const hasPhases = milestones.milestones.some((m) => m.phases.length > 0)
+    if (hasPhases) completedLevels.push("architecture")
+    const hasTasks = milestones.milestones.some((m) =>
+      m.phases.some((p) => p.tasks.length > 0),
+    )
+    if (hasTasks) {
+      completedLevels.push("design")
+      completedLevels.push("tasks")
     }
   }
 
-  async function loadDocs() {
-    setDocsLoading(true)
-    const res = await fetch(`/api/projects/${id}/docs`)
-    if (res.ok) {
-      setDocs(await res.json())
-    }
-    setDocsLoading(false)
-  }
-
-  async function loadAgents() {
-    const res = await fetch(`/api/agents?projectId=${id}`)
-    if (res.ok) {
-      setAgents(await res.json())
-    }
-  }
-
-  async function handleCancelAgent(agentId: string) {
-    await fetch(`/api/agents/${agentId}`, { method: "DELETE" })
-    loadAgents()
-  }
-
-  async function handleResumeAgent(agentId: string) {
-    const res = await fetch(`/api/agents/${agentId}/resume`, { method: "POST" })
-    if (res.ok) {
-      const data = await res.json()
-      setViewingOutput(data.agentId)
-    }
-    loadAgents()
-  }
+  // Determine running level based on project status
+  const runningLevel: PipelineLevel | null =
+    project?.status === "planning" ? "vision" : null
 
   async function handleArchive() {
     if (!project) return
-    await fetch(`/api/projects/${id}`, {
-      method: "DELETE",
-    })
+    await fetch(`/api/projects/${id}`, { method: "DELETE" })
     router.push("/projects")
+  }
+
+  async function handleTaskAction(action: string, taskId: string) {
+    await fetch(`/api/projects/${id}/milestones`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, taskId }),
+    })
+    loadMilestones()
+  }
+
+  async function handlePhaseAction(action: string, phaseId: string) {
+    await fetch(`/api/projects/${id}/milestones`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, phaseId }),
+    })
+    loadMilestones()
+  }
+
+  function renderContent() {
+    switch (activeLevel) {
+      case "vision":
+        if (docs?.vision) {
+          return (
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+              {docs.vision}
+            </pre>
+          )
+        }
+        return (
+          <p className="text-sm text-muted-foreground">
+            Planning pipeline will generate documents...
+          </p>
+        )
+
+      case "milestones":
+        if (docs?.milestones) {
+          return (
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+              {docs.milestones}
+            </pre>
+          )
+        }
+        if (milestones && milestones.milestones.length > 0) {
+          return (
+            <div className="space-y-2">
+              {milestones.milestones.map((m) => (
+                <div key={m.id} className="flex items-center gap-2">
+                  <StatusBadge status={m.status} />
+                  <span className="text-sm">{m.name}</span>
+                  {m.isMvpBoundary === 1 && (
+                    <span className="text-xs text-muted-foreground">&larr; MVP</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        }
+        return (
+          <p className="text-sm text-muted-foreground">
+            Milestones will appear when the pipeline completes.
+          </p>
+        )
+
+      case "architecture":
+        if (docs?.arch) {
+          return (
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+              {docs.arch}
+            </pre>
+          )
+        }
+        return (
+          <p className="text-sm text-muted-foreground">
+            Planning pipeline will generate documents...
+          </p>
+        )
+
+      case "design":
+        if (docs?.codingStandards || docs?.taxonomy) {
+          return (
+            <div className="space-y-6">
+              {docs.taxonomy && (
+                <div>
+                  <h3 className="text-base font-medium mb-2">TAXONOMY.md</h3>
+                  <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {docs.taxonomy}
+                  </pre>
+                </div>
+              )}
+              {docs.codingStandards && (
+                <div>
+                  <h3 className="text-base font-medium mb-2">CODING-STANDARDS.md</h3>
+                  <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {docs.codingStandards}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )
+        }
+        return (
+          <p className="text-sm text-muted-foreground">
+            Planning pipeline will generate documents...
+          </p>
+        )
+
+      case "tasks":
+        if (milestones && milestones.milestones.length > 0) {
+          return (
+            <MilestoneTree
+              data={milestones}
+              onTaskAction={handleTaskAction}
+              onPhaseAction={handlePhaseAction}
+            />
+          )
+        }
+        return (
+          <p className="text-sm text-muted-foreground">
+            Milestones will appear when the pipeline completes.
+          </p>
+        )
+
+      default:
+        return null
+    }
   }
 
   if (loading) {
@@ -176,246 +270,49 @@ export default function ProjectDetailPage({
 
   if (!project) return null
 
-  const hasDocs = project.workspacePath !== null
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
+    <div className="flex h-[calc(100vh-3rem)] overflow-hidden">
+      {/* Center column */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => router.push("/projects")}>
               <ArrowLeftIcon className="h-4 w-4" />
             </Button>
-            <h1 className="text-2xl font-bold">{project.name}</h1>
+            <h1 className="text-base font-semibold truncate">{project.name}</h1>
             <StatusBadge status={project.status} />
-          </div>
-          <p className="ml-11 text-sm text-muted-foreground">
-            Created {new Date(project.createdAt).toLocaleDateString()}
             {project.workspacePath && (
-              <span className="ml-3 inline-flex items-center gap-1">
+              <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
                 <FolderIcon className="h-3 w-3" />
                 {project.workspacePath}
               </span>
             )}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleArchive}>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleArchive}>
             <ArchiveIcon className="mr-2 h-4 w-4" />
             Archive
           </Button>
         </div>
+
+        {/* Pipeline nav */}
+        <PipelineNav
+          activeLevel={activeLevel}
+          onSelect={setActiveLevel}
+          completedLevels={completedLevels}
+          runningLevel={runningLevel}
+        />
+
+        {/* Content area */}
+        <div className="flex-1 overflow-auto p-6">
+          {renderContent()}
+        </div>
       </div>
 
-      {error && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      {/* Prompt */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Project Prompt
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="whitespace-pre-wrap text-sm">{project.prompt}</p>
-        </CardContent>
-      </Card>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="docs">Docs</TabsTrigger>
-          <TabsTrigger value="milestones">Milestones</TabsTrigger>
-          <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="chat">Chat</TabsTrigger>
-          <TabsTrigger value="deploys" disabled>
-            Deploys
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="docs" className="mt-4">
-          {!hasDocs ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  No docs generated yet. Click &ldquo;Generate Docs&rdquo; to
-                  create workflow documents from your prompt.
-                </p>
-              </CardContent>
-            </Card>
-          ) : docsLoading ? (
-            <div className="space-y-4">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-32 w-full" />
-              ))}
-            </div>
-          ) : docs ? (
-            <DocTabs docs={docs} />
-          ) : null}
-        </TabsContent>
-
-        <TabsContent value="milestones" className="mt-4">
-          {!milestones || milestones.milestones.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  {project.status === "planning"
-                    ? "Planning in progress — milestones will appear when the pipeline completes."
-                    : "No milestones yet."}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {milestones.progress && (
-                <div className="text-sm text-muted-foreground">
-                  {milestones.progress.completedMilestones}/{milestones.progress.totalMilestones} milestones,{" "}
-                  {milestones.progress.completedTasks}/{milestones.progress.totalTasks} tasks
-                </div>
-              )}
-              {milestones.milestones.map((milestone) => (
-                <Card key={milestone.id}>
-                  <CardHeader className="py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base">{milestone.name}</CardTitle>
-                        {milestone.isMvpBoundary === 1 && (
-                          <span className="text-xs text-muted-foreground">&larr; MVP</span>
-                        )}
-                      </div>
-                      <StatusBadge status={milestone.status} />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="py-2">
-                    {milestone.phases.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No phases yet</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {milestone.phases.map((phase) => (
-                          <div key={phase.id} className="rounded-md border p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium">{phase.name}</span>
-                              <StatusBadge status={phase.status} />
-                            </div>
-                            {phase.tasks.length > 0 && (
-                              <div className="space-y-1 ml-2">
-                                {phase.tasks.map((task) => (
-                                  <div key={task.id} className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground">{task.title}</span>
-                                    <StatusBadge status={task.status} />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="agents" className="mt-4 space-y-4">
-          <ProcessStatusPanel projectId={id} />
-
-          {agents.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  No agents have been spawned for this project. Start a phase to
-                  begin agent execution.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {agents.map((agent) => (
-                <div key={agent.id}>
-                  <AgentCard
-                    agent={agent}
-                    onCancel={handleCancelAgent}
-                    onResume={handleResumeAgent}
-                    onViewOutput={(id) =>
-                      setViewingOutput((prev) => (prev === id ? null : id))
-                    }
-                  />
-                  {viewingOutput === agent.id && (
-                    <div className="mt-1">
-                      <AgentOutput
-                        agentId={agent.id}
-                        onClose={() => setViewingOutput(null)}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="chat" className="mt-4">
-          <Card>
-            <OrchestratorChat projectId={id} />
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="deploys" className="mt-4">
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">
-                Deployment management will be available in a future version.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Chat panel - always visible */}
+      <div className="w-[350px] shrink-0 border-l border-border flex flex-col overflow-hidden">
+        <OrchestratorChat projectId={id} />
+      </div>
     </div>
-  )
-}
-
-const DOC_TABS = [
-  { key: "vision", label: "VISION.md" },
-  { key: "arch", label: "ARCH.md" },
-  { key: "plan", label: "PLAN.md" },
-  { key: "taxonomy", label: "TAXONOMY.md" },
-  { key: "codingStandards", label: "CODING-STANDARDS.md" },
-] as const
-
-function DocTabs({ docs }: { docs: ProjectDocs }) {
-  return (
-    <Tabs defaultValue="vision">
-      <TabsList>
-        {DOC_TABS.map((tab) => (
-          <TabsTrigger key={tab.key} value={tab.key}>
-            {tab.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      {DOC_TABS.map((tab) => (
-        <TabsContent key={tab.key} value={tab.key} className="mt-4">
-          <Card>
-            <CardContent className="py-4">
-              {docs[tab.key] ? (
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {docs[tab.key]}
-                </pre>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  This document was not generated.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      ))}
-    </Tabs>
   )
 }

@@ -8,6 +8,7 @@ type RouteParams = { params: Promise<{ id: string }> }
 
 const DOC_FILES = [
   { key: "vision", filename: "VISION.md" },
+  { key: "milestones", filename: "MILESTONES.md" },
   { key: "arch", filename: "ARCH.md" },
   { key: "plan", filename: "PLAN.md" },
   { key: "taxonomy", filename: "TAXONOMY.md" },
