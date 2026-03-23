@@ -14,6 +14,19 @@ export type SkillName = "vision" | "milestones" | "architecture" | "design"
 
 export type CollaborationProfile = "operator" | "architect" | "full_auto"
 
+const COLLABORATIVE_LEVELS: Record<CollaborationProfile, SkillName[]> = {
+  operator: ["vision", "milestones"],
+  architect: ["vision", "milestones", "architecture", "design"],
+  full_auto: ["vision"],
+}
+
+export function isCollaborativeAt(
+  profile: CollaborationProfile,
+  level: SkillName,
+): boolean {
+  return COLLABORATIVE_LEVELS[profile].includes(level)
+}
+
 export interface PlanningEngineConfig {
   model: string
   apiKey: string
@@ -51,6 +64,17 @@ export interface PlanningResult {
   phasesCreated: number
   tasksCreated: number
   error?: string
+  awaitingReview?: SkillName
+}
+
+interface StepResult {
+  success: boolean
+  nextStep?: string
+  error?: string
+  skillResult?: SkillResult
+  milestonesCreated?: number
+  phasesCreated?: number
+  tasksCreated?: number
 }
 
 export interface ParsedMilestone {
@@ -208,130 +232,281 @@ function buildSkillPrompt(
 // ── PlanningEngine class ───────────────────────────────────────────────
 
 export class PlanningEngine {
+  /**
+   * Run the next step of the planning pipeline.
+   * Reads project.planningStep to determine where to resume.
+   * Runs one skill, then either pauses (awaiting_review) or continues
+   * to the next step based on the collaboration profile.
+   */
   async runPipeline(
     projectId: string,
     config: PlanningEngineConfig,
     onProgress?: (event: PlanningProgressEvent) => void,
   ): Promise<PlanningResult> {
     const db = getDb()
-    const agentManager = getAgentManager()
-    const tracker = getDeliveryTracker()
-    const allSkillResults: SkillResult[] = []
-
     const project = db.select().from(schema.projects)
       .where(eq(schema.projects.id, projectId)).get()
     if (!project) throw new Error(`Project not found: ${projectId}`)
     if (!project.workspacePath) throw new Error(`Project ${projectId} has no workspace path`)
 
-    // 1. Install skills
-    installSkills(project.workspacePath)
+    const profile = (config.collaborationProfile ?? project.collaborationProfile ?? "operator") as CollaborationProfile
+    const step = project.planningStep ?? "init"
 
-    // 2. Vision skill
-    onProgress?.({ level: "vision", status: "running" })
-    const visionResult = await this.runSkill(projectId, "vision", config)
-    allSkillResults.push(visionResult)
-    if (!visionResult.success) {
-      onProgress?.({ level: "vision", status: "failed", error: visionResult.error })
-      return this.buildResult(false, allSkillResults, visionResult.error)
+    // Install skills on first run
+    if (step === "init") {
+      installSkills(project.workspacePath)
     }
-    const visionStatus = await agentManager.waitForAgent(visionResult.agentId)
-    if (visionStatus !== "completed") {
-      onProgress?.({ level: "vision", status: "failed", error: `Agent ${visionStatus}` })
-      return this.buildResult(false, allSkillResults, `Vision agent ${visionStatus}`)
-    }
-    this.extractVisionFields(projectId, project.workspacePath)
-    onProgress?.({ level: "vision", status: "completed", agentId: visionResult.agentId })
 
-    // 3. Milestones skill
-    onProgress?.({ level: "milestones", status: "running" })
-    const msResult = await this.runSkill(projectId, "milestones", config)
-    allSkillResults.push(msResult)
-    if (!msResult.success) {
-      onProgress?.({ level: "milestones", status: "failed", error: msResult.error })
-      return this.buildResult(false, allSkillResults, msResult.error)
-    }
-    const msStatus = await agentManager.waitForAgent(msResult.agentId)
-    if (msStatus !== "completed") {
-      onProgress?.({ level: "milestones", status: "failed" })
-      return this.buildResult(false, allSkillResults, `Milestones agent ${msStatus}`)
-    }
-    // Parse MILESTONES.md → create milestone records
-    const milestonesPath = path.join(project.workspacePath, "docs", "MILESTONES.md")
-    if (!fs.existsSync(milestonesPath)) {
-      onProgress?.({ level: "milestones", status: "failed", error: "MILESTONES.md not created" })
-      return this.buildResult(false, allSkillResults, "Milestones agent did not create MILESTONES.md")
-    }
-    const milestonesContent = fs.readFileSync(milestonesPath, "utf-8")
-    const parsed = parseMilestonesDoc(milestonesContent)
-    const milestoneRecords = tracker.createMilestones(projectId, parsed)
-    onProgress?.({ level: "milestones", status: "completed", detail: `${milestoneRecords.length} milestones` })
+    // Run steps until we hit a collaborative pause or complete
+    let currentStep = step === "init" ? "vision" : step
+    const allSkillResults: SkillResult[] = []
+    let totalMilestones = 0
+    let totalPhases = 0
+    let totalTasks = 0
 
-    // 4. For each milestone: architecture → design → task extraction
-    let totalPhasesCreated = 0
-    let totalTasksCreated = 0
+    while (currentStep !== "complete") {
+      const result = await this.runStep(
+        projectId, currentStep, config, project.workspacePath, onProgress,
+      )
 
-    for (const milestone of milestoneRecords) {
-      // Architecture skill
-      onProgress?.({ level: "architecture", status: "running", detail: milestone.name })
-      const archResult = await this.runSkill(projectId, "architecture", config, {
-        milestoneName: milestone.name,
-      })
-      allSkillResults.push(archResult)
-      if (!archResult.success) {
-        onProgress?.({ level: "architecture", status: "failed", detail: milestone.name, error: archResult.error })
-        continue
-      }
-      const archStatus = await agentManager.waitForAgent(archResult.agentId)
-      if (archStatus !== "completed") {
-        onProgress?.({ level: "architecture", status: "failed", detail: milestone.name })
-        continue
-      }
-      onProgress?.({ level: "architecture", status: "completed", detail: milestone.name })
+      if (result.skillResult) allSkillResults.push(result.skillResult)
+      totalMilestones += result.milestonesCreated ?? 0
+      totalPhases += result.phasesCreated ?? 0
+      totalTasks += result.tasksCreated ?? 0
 
-      // Parse components from arch delta
-      const archDir = milestoneToArchDir(milestone.name)
-      const archPath = path.join(project.workspacePath, "docs", "milestones", archDir, "ARCH.md")
-      let components: string[] = []
-      if (fs.existsSync(archPath)) {
-        components = parseArchComponentList(fs.readFileSync(archPath, "utf-8"))
+      if (!result.success) {
+        return this.buildResult(false, allSkillResults, result.error)
       }
 
-      // Design skill for each component
-      for (const component of components) {
-        onProgress?.({ level: "design", status: "running", detail: component })
-        const designResult = await this.runSkill(projectId, "design", config, {
-          milestoneName: milestone.name,
-          componentName: component,
+      const nextStep = result.nextStep ?? "complete"
+
+      // Save progress
+      db.update(schema.projects)
+        .set({ planningStep: nextStep, updatedAt: new Date().toISOString() })
+        .where(eq(schema.projects.id, projectId))
+        .run()
+
+      // Check if we should pause for review at the COMPLETED level
+      const completedLevel = this.stepToSkillName(currentStep)
+      if (completedLevel && isCollaborativeAt(profile, completedLevel) && nextStep !== "complete") {
+        onProgress?.({
+          level: completedLevel,
+          status: "awaiting_review",
+          detail: `Review ${completedLevel} before continuing`,
         })
-        allSkillResults.push(designResult)
-        if (designResult.success) {
-          await agentManager.waitForAgent(designResult.agentId)
+        // Return with awaiting_review — caller must POST /plan/continue to resume
+        return {
+          success: true,
+          skills: allSkillResults,
+          milestonesCreated: totalMilestones,
+          phasesCreated: totalPhases,
+          tasksCreated: totalTasks,
+          awaitingReview: completedLevel,
         }
-        onProgress?.({ level: "design", status: designResult.success ? "completed" : "failed", detail: component })
       }
 
-      // Task extraction
-      onProgress?.({ level: "task_extraction", status: "running", detail: milestone.name })
-      const tasks = tracker.extractTasksFromDesignDocs(milestone.id, project.workspacePath)
-      const phases = tracker.getPhases(milestone.id)
-      totalPhasesCreated += phases.length
-      totalTasksCreated += tasks.length
-      onProgress?.({ level: "task_extraction", status: "completed", detail: `${tasks.length} tasks in ${phases.length} phases` })
+      currentStep = nextStep
     }
 
-    // 5. Update project status
+    // Pipeline complete
     db.update(schema.projects)
-      .set({ status: "building", updatedAt: new Date().toISOString() })
+      .set({ status: "building", planningStep: "complete", updatedAt: new Date().toISOString() })
       .where(eq(schema.projects.id, projectId))
       .run()
 
     return {
       success: true,
       skills: allSkillResults,
-      milestonesCreated: milestoneRecords.length,
-      phasesCreated: totalPhasesCreated,
-      tasksCreated: totalTasksCreated,
+      milestonesCreated: totalMilestones,
+      phasesCreated: totalPhases,
+      tasksCreated: totalTasks,
     }
+  }
+
+  private stepToSkillName(step: string): SkillName | null {
+    if (step === "vision") return "vision"
+    if (step === "milestones") return "milestones"
+    if (step.startsWith("architecture:")) return "architecture"
+    if (step.startsWith("design:")) return "design"
+    return null
+  }
+
+  private async runStep(
+    projectId: string,
+    step: string,
+    config: PlanningEngineConfig,
+    workspacePath: string,
+    onProgress?: (event: PlanningProgressEvent) => void,
+  ): Promise<StepResult> {
+    const agentManager = getAgentManager()
+    const tracker = getDeliveryTracker()
+
+    // ── Vision ──
+    if (step === "vision") {
+      onProgress?.({ level: "vision", status: "running" })
+      const result = await this.runSkill(projectId, "vision", config)
+      if (!result.success) {
+        onProgress?.({ level: "vision", status: "failed", error: result.error })
+        return { success: false, error: result.error, skillResult: result }
+      }
+      const status = await agentManager.waitForAgent(result.agentId)
+      if (status !== "completed") {
+        onProgress?.({ level: "vision", status: "failed", error: `Agent ${status}` })
+        return { success: false, error: `Vision agent ${status}`, skillResult: result }
+      }
+      this.extractVisionFields(projectId, workspacePath)
+      onProgress?.({ level: "vision", status: "completed", agentId: result.agentId })
+      return { success: true, nextStep: "milestones", skillResult: result }
+    }
+
+    // ── Milestones ──
+    if (step === "milestones") {
+      onProgress?.({ level: "milestones", status: "running" })
+      const result = await this.runSkill(projectId, "milestones", config)
+      if (!result.success) {
+        onProgress?.({ level: "milestones", status: "failed", error: result.error })
+        return { success: false, error: result.error, skillResult: result }
+      }
+      const status = await agentManager.waitForAgent(result.agentId)
+      if (status !== "completed") {
+        onProgress?.({ level: "milestones", status: "failed" })
+        return { success: false, error: `Milestones agent ${status}`, skillResult: result }
+      }
+      const msPath = path.join(workspacePath, "docs", "MILESTONES.md")
+      if (!fs.existsSync(msPath)) {
+        onProgress?.({ level: "milestones", status: "failed", error: "MILESTONES.md not created" })
+        return { success: false, error: "MILESTONES.md not created", skillResult: result }
+      }
+      const content = fs.readFileSync(msPath, "utf-8")
+      const parsed = parseMilestonesDoc(content)
+      const records = tracker.createMilestones(projectId, parsed)
+      onProgress?.({ level: "milestones", status: "completed", detail: `${records.length} milestones` })
+
+      // Next step: architecture for first milestone
+      if (records.length > 0) {
+        return { success: true, nextStep: `architecture:${records[0].name}`, skillResult: result, milestonesCreated: records.length }
+      }
+      return { success: true, nextStep: "complete", skillResult: result, milestonesCreated: records.length }
+    }
+
+    // ── Architecture (per milestone) ──
+    if (step.startsWith("architecture:")) {
+      const milestoneName = step.slice("architecture:".length)
+      onProgress?.({ level: "architecture", status: "running", detail: milestoneName })
+
+      const result = await this.runSkill(projectId, "architecture", config, { milestoneName })
+      if (!result.success) {
+        onProgress?.({ level: "architecture", status: "failed", detail: milestoneName, error: result.error })
+        // Skip to next milestone's architecture or design phase
+        return { success: true, nextStep: this.getNextArchStep(projectId, milestoneName), skillResult: result }
+      }
+      const status = await agentManager.waitForAgent(result.agentId)
+      if (status !== "completed") {
+        onProgress?.({ level: "architecture", status: "failed", detail: milestoneName })
+        return { success: true, nextStep: this.getNextArchStep(projectId, milestoneName), skillResult: result }
+      }
+      onProgress?.({ level: "architecture", status: "completed", detail: milestoneName })
+
+      // Parse components → design steps
+      const archDir = milestoneToArchDir(milestoneName)
+      const archPath = path.join(workspacePath, "docs", "milestones", archDir, "ARCH.md")
+      let components: string[] = []
+      if (fs.existsSync(archPath)) {
+        components = parseArchComponentList(fs.readFileSync(archPath, "utf-8"))
+      }
+
+      if (components.length > 0) {
+        return { success: true, nextStep: `design:${milestoneName}:${components[0]}`, skillResult: result }
+      }
+
+      // No components → extract tasks directly then move to next milestone
+      const milestone = tracker.getMilestones(projectId).find(m => m.name === milestoneName)
+      if (milestone) {
+        const tasks = tracker.extractTasksFromDesignDocs(milestone.id, workspacePath)
+        const phases = tracker.getPhases(milestone.id)
+        return {
+          success: true,
+          nextStep: this.getNextArchStep(projectId, milestoneName),
+          skillResult: result,
+          phasesCreated: phases.length,
+          tasksCreated: tasks.length,
+        }
+      }
+
+      return { success: true, nextStep: this.getNextArchStep(projectId, milestoneName), skillResult: result }
+    }
+
+    // ── Design (per component) ──
+    if (step.startsWith("design:")) {
+      const parts = step.slice("design:".length).split(":")
+      const milestoneName = parts[0]
+      const componentName = parts.slice(1).join(":")
+
+      onProgress?.({ level: "design", status: "running", detail: componentName })
+      const result = await this.runSkill(projectId, "design", config, {
+        milestoneName,
+        componentName,
+      })
+      if (result.success) {
+        await agentManager.waitForAgent(result.agentId)
+      }
+      onProgress?.({ level: "design", status: result.success ? "completed" : "failed", detail: componentName })
+
+      // Find next component or move to task extraction
+      const nextDesignStep = this.getNextDesignStep(projectId, workspacePath, milestoneName, componentName)
+      if (nextDesignStep) {
+        return { success: true, nextStep: nextDesignStep, skillResult: result }
+      }
+
+      // All components designed for this milestone → extract tasks
+      const milestone = tracker.getMilestones(projectId).find(m => m.name === milestoneName)
+      let phasesCreated = 0
+      let tasksCreated = 0
+      if (milestone) {
+        onProgress?.({ level: "task_extraction", status: "running", detail: milestoneName })
+        const tasks = tracker.extractTasksFromDesignDocs(milestone.id, workspacePath)
+        const phases = tracker.getPhases(milestone.id)
+        phasesCreated = phases.length
+        tasksCreated = tasks.length
+        onProgress?.({ level: "task_extraction", status: "completed", detail: `${tasks.length} tasks in ${phases.length} phases` })
+      }
+
+      return {
+        success: true,
+        nextStep: this.getNextArchStep(projectId, milestoneName),
+        skillResult: result,
+        phasesCreated,
+        tasksCreated,
+      }
+    }
+
+    return { success: true, nextStep: "complete" }
+  }
+
+  private getNextArchStep(projectId: string, currentMilestoneName: string): string {
+    const tracker = getDeliveryTracker()
+    const milestones = tracker.getMilestones(projectId)
+    const currentIdx = milestones.findIndex(m => m.name === currentMilestoneName)
+    const next = milestones[currentIdx + 1]
+    if (next) return `architecture:${next.name}`
+    return "complete"
+  }
+
+  private getNextDesignStep(
+    projectId: string,
+    workspacePath: string,
+    milestoneName: string,
+    currentComponent: string,
+  ): string | null {
+    const archDir = milestoneToArchDir(milestoneName)
+    const archPath = path.join(workspacePath, "docs", "milestones", archDir, "ARCH.md")
+    if (!fs.existsSync(archPath)) return null
+
+    const components = parseArchComponentList(fs.readFileSync(archPath, "utf-8"))
+    const currentIdx = components.indexOf(currentComponent)
+    const next = components[currentIdx + 1]
+    if (next) return `design:${milestoneName}:${next}`
+    return null
   }
 
   private extractVisionFields(projectId: string, workspacePath: string): void {

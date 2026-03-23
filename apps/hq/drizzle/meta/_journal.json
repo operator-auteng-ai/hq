@@ -29,6 +29,13 @@
       "when": 1774220951281,
       "tag": "0003_easy_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1774279957811,
+      "tag": "0004_thin_hammerhead",
+      "breakpoints": true
     }
   ]
 }

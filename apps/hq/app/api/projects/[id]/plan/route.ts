@@ -35,7 +35,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     )
   }
 
-  // Get API key
   const { getAnthropicApiKey } = await import("@/lib/services/secrets")
   const apiKey = getAnthropicApiKey()
   if (!apiKey) {
@@ -49,11 +48,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json()
     const parsed = planRequestSchema.parse(body)
 
-    // Update project status to planning
-    db.update(schema.projects)
-      .set({ status: "planning", updatedAt: new Date().toISOString() })
-      .where(eq(schema.projects.id, id))
-      .run()
+    // Update project status to planning (if not already)
+    if (project.status !== "planning") {
+      db.update(schema.projects)
+        .set({ status: "planning", updatedAt: new Date().toISOString() })
+        .where(eq(schema.projects.id, id))
+        .run()
+    }
 
     const encoder = new TextEncoder()
     const stream = new ReadableStream({

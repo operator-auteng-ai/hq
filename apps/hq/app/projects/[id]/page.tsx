@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, use } from "react"
+import { useEffect, useState, useCallback, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
@@ -15,6 +15,8 @@ interface Project {
   name: string
   prompt: string
   status: string
+  collaborationProfile: string | null
+  planningStep: string | null
   workspacePath: string | null
   deployUrl: string | null
   createdAt: string
@@ -42,7 +44,9 @@ export default function ProjectDetailPage({
   const [docs, setDocs] = useState<ProjectDocs | null>(null)
   const [milestones, setMilestones] = useState<MilestoneTreeData | null>(null)
   const [activeLevel, setActiveLevel] = useState<PipelineLevel>("vision")
-  const [pipelineStarted, setPipelineStarted] = useState(false)
+  const [pipelineRunning, setPipelineRunning] = useState(false)
+  const pipelineTriggered = useRef(false)
+  const [awaitingReview, setAwaitingReview] = useState<string | null>(null)
 
   const loadMilestones = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}/milestones`)
@@ -88,22 +92,73 @@ export default function ProjectDetailPage({
     return () => clearInterval(interval)
   }, [loadMilestones])
 
-  // Auto-trigger pipeline for draft projects
-  useEffect(() => {
-    if (project?.status === "draft" && !pipelineStarted) {
-      setPipelineStarted(true)
-      fetch(`/api/projects/${id}/plan`, {
+  // Trigger pipeline for draft projects or resume after review
+  const triggerPipeline = useCallback(async () => {
+    if (pipelineRunning) return
+    setPipelineRunning(true)
+    pipelineTriggered.current = true
+    setAwaitingReview(null)
+
+    try {
+      const profile = project?.collaborationProfile ?? "operator"
+      const res = await fetch(`/api/projects/${id}/plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "sonnet", collaborationProfile: "full_auto" }),
-      }).then(() => {
-        // Reload project to get updated status and workspace path
-        loadProject()
-      }).catch(() => {
-        // Pipeline trigger failed, user can retry via chat
+        body: JSON.stringify({ model: "sonnet", collaborationProfile: profile }),
       })
+
+      if (res.ok && res.body) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let currentEvent = ""
+        let done = false
+
+        while (!done) {
+          const result = await reader.read()
+          done = result.done
+          if (result.value) {
+            const chunk = decoder.decode(result.value, { stream: true })
+            for (const line of chunk.split("\n")) {
+              if (line.startsWith("event: ")) {
+                currentEvent = line.slice(7).trim()
+              } else if (line.startsWith("data: ")) {
+                try {
+                  const data = JSON.parse(line.slice(6))
+                  if (currentEvent === "complete" && data.awaitingReview) {
+                    setAwaitingReview(data.awaitingReview)
+                    setPipelineRunning(false) // Allow re-triggering via Continue button
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Pipeline trigger failed
+    } finally {
+      setPipelineRunning(false)
+      loadProject()
+      loadDocs()
+      loadMilestones()
     }
-  }, [project?.status, pipelineStarted, id, loadProject])
+  }, [id, project?.collaborationProfile, pipelineRunning, loadProject, loadDocs, loadMilestones])
+
+  // Auto-trigger pipeline for draft projects (once only via ref)
+  useEffect(() => {
+    if (project?.status === "draft" && !pipelineTriggered.current) {
+      triggerPipeline()
+    }
+  }, [project?.status, triggerPipeline])
+
+  // Auto-set active level to the awaiting review level
+  useEffect(() => {
+    if (awaitingReview) {
+      setActiveLevel(awaitingReview as PipelineLevel)
+    }
+  }, [awaitingReview])
 
   // Derive completed levels from docs/milestones
   const completedLevels: PipelineLevel[] = []
@@ -302,6 +357,25 @@ export default function ProjectDetailPage({
           completedLevels={completedLevels}
           runningLevel={runningLevel}
         />
+
+        {/* Awaiting review banner */}
+        {awaitingReview && (
+          <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-muted/50">
+            <span className="text-sm text-muted-foreground">
+              Review the {awaitingReview} document, then continue when ready.
+            </span>
+            <Button
+              size="sm"
+              onClick={() => {
+                pipelineTriggered.current = false // Allow re-trigger
+                triggerPipeline()
+              }}
+              disabled={pipelineRunning}
+            >
+              Continue Pipeline
+            </Button>
+          </div>
+        )}
 
         {/* Content area */}
         <div className="flex-1 overflow-auto p-6">

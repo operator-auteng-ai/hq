@@ -68,6 +68,15 @@ test.describe("Milestones tab with mocked data", () => {
     })
     const project = await res.json()
 
+    // Mock plan endpoint first to prevent auto-trigger from causing re-renders
+    await page.route(`**/api/projects/${project.id}/plan`, (route) => {
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: "event: complete\ndata: {}\n\n",
+      })
+    })
+
     // Mock the milestones endpoint with a full tree
     await page.route(
       `**/api/projects/${project.id}/milestones`,
@@ -284,7 +293,7 @@ test.describe("Chat UI with mocked streaming", () => {
     )
 
     await page.goto(`/projects/${project.id}`)
-    // Chat is always visible in the cockpit layout — no need to click a tab
+    await page.waitForTimeout(1000) // Wait for auto-trigger to settle
 
     // Type and send a message
     await page
@@ -386,7 +395,7 @@ test.describe("Chat UI with mocked streaming", () => {
     )
 
     await page.goto(`/projects/${project.id}`)
-    // Chat is always visible in the cockpit layout — no need to click a tab
+    await page.waitForTimeout(1000) // Wait for auto-trigger to settle
 
     await page
       .getByPlaceholder(/ask about project status/i)
