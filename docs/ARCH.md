@@ -167,9 +167,9 @@ graph TB
 The Electron main process launches a standalone Next.js server and loads it in a BrowserWindow. The preload bridge exposes a minimal IPC API (`app:minimize`, `app:maximize`, `app:close`) with context isolation. Backend services run as Next.js API routes within the same process. The Process Registry singleton (on `globalThis`) tracks all running agent and background processes, enforcing concurrency limits and enabling clean shutdown on app quit.
 
 The orchestration layer splits into three components:
-- **Orchestrator** — top-level coordinator that sequences the full lifecycle from vision to release. Currently manages phase-level progression via PLAN.md parsing; will be rewritten to drive the planning engine and delivery tracker sequentially via agent completion callbacks
-- **Planning Engine** — runs skills (vision, milestones, architecture, design) by spawning agents with skill context, producing workspace files. Currently supports individual skill runs and initiates the pipeline; full sequential chaining pending orchestrator rewrite
-- **Delivery Tracker** — state machine that manages milestone/phase/task progression in the database, detects milestone completion, and triggers release stamping
+- **Orchestrator** — top-level coordinator that drives both planning and delivery. Assigns agents to individual tasks with contextual prompts, auto-advances to next task on completion, triggers phase review agents, triggers arch roll-up on milestone completion, and respects collaboration profiles
+- **Planning Engine** — runs skills (vision, milestones, architecture, design) by spawning agents with skill context, producing workspace files. Chains skills sequentially using agent completion callbacks
+- **Delivery Tracker** — state machine that manages milestone/phase/task progression in the database, enforces valid status transitions, detects phase and milestone completion via cascade logic
 
 ### Orchestrator Chat
 
@@ -289,6 +289,7 @@ erDiagram
         text prompt
         text vision_hypothesis "extracted from VISION.md"
         text success_metric "extracted from VISION.md"
+        text collaboration_profile "operator | architect | full_auto"
         text status
         text workspace_path
         text deploy_url
@@ -313,8 +314,10 @@ erDiagram
         text milestone_id FK
         text name "e.g. Data Model & API, Payment Flow, Error Handling & Tests"
         text description
+        text exit_criteria "JSON array of criteria strings"
         int sort_order
-        text status "pending | active | review | feedback | completed | failed"
+        text status "pending | active | reviewing | review_failed | completed | failed"
+        text review_result "JSON: review agent findings"
         timestamp created_at
         timestamp completed_at
     }
@@ -400,6 +403,23 @@ erDiagram
         timestamp recorded_at
     }
 
+    chat_messages {
+        text id PK
+        text project_id FK
+        text role "user | assistant"
+        text content
+        text action_proposed "JSON: proposed orchestrator actions"
+        int action_executed "boolean: was the action confirmed"
+        timestamp created_at
+    }
+
+    app_settings {
+        text key PK
+        text value
+        int encrypted "boolean"
+        timestamp updated_at
+    }
+
     deploy_events {
         text id PK
         text project_id FK
@@ -421,6 +441,7 @@ erDiagram
     projects ||--o{ agent_runs : "spawns"
     projects ||--o{ background_processes : "runs"
     projects ||--o| process_configs : "configures"
+    projects ||--o{ chat_messages : "conversations"
     projects ||--o{ kpi_snapshots : "tracks"
     projects ||--o{ deploy_events : "deploys"
 ```

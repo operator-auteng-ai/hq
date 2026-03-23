@@ -2,14 +2,16 @@
 
 ## Current State
 
-Phase 5 complete. All components built but not yet working end-to-end:
-- Phase 0–2: Skeleton, project creation, agent execution, process management (all working)
-- Phase 3: Delivery schema + tracker (tables, state machine, API routes — working)
-- Phase 4: Planning skills + engine (skills, parsers, installer — working individually, pipeline not chaining)
-- Phase 5: Orchestrator chat (context builder, action extractor, chat UI — working)
-- 198-test suite, TypeScript clean, 12 Playwright E2E passing
+Phase 7 complete. Full pipeline operational:
+- Phase 0–2: Skeleton, project creation, agent execution, process management
+- Phase 3: Delivery schema + tracker (milestones, phases, tasks, releases with state machine)
+- Phase 4: Planning skills + engine (4 skills, sequential pipeline with agent completion callbacks)
+- Phase 5: Orchestrator chat (context builder, action extractor, chat UI on project page)
+- Phase 6: Pipeline wired end-to-end (completion callbacks, full skill chaining, old code removed)
+- Phase 7: Orchestrator rewrite (task-level agent assignment, auto-advance, phase review, arch roll-up, collaboration profiles)
+- 179 unit tests + 11 Playwright E2E, TypeScript clean
 
-**Critical gap**: The pieces don't connect into a working pipeline yet. The planning engine spawns only the first skill (vision) because AgentManager has no completion callbacks. The old doc generator was removed from the project creation flow but nothing replaced it end-to-end. The app creates projects but can't run them through the full decomposition → build cycle.
+Project creation → planning pipeline (vision → milestones → architecture → design → task extraction) → orchestrator assigns agents to tasks → auto-advances through phases → phase review → milestone completion → arch roll-up. Old doc generator and phase parser removed.
 
 ## Future State
 
