@@ -48,7 +48,7 @@ graph TB
         direction TB
         V["L1: Vision Skill<br/>→ VISION.md"]
         M["L2: Milestone Skill<br/>→ MILESTONES.md"]
-        A["L3: Architecture Skill<br/>→ milestones/&lt;name&gt;/ARCH.md<br/>(delta off canonical)"]
+        A["L3: Architecture Skill<br/>→ milestone arch deltas<br/>(delta off canonical)"]
         D["L4: Design Skill<br/>→ detailed_design/*/*.md"]
         V --> M --> A --> D
     end
@@ -227,7 +227,7 @@ sequenceDiagram
         Note over PE,A: Level 3 — Architecture (collaborative if profile allows)
         HQ->>PE: Run architecture skill (for this milestone)
         PE->>A: Spawn agent with architecture skill
-        A-->>PE: milestones/&lt;name&gt;/ARCH.md (architecture delta)
+        A-->>PE: milestone arch delta
         alt Collaborative
             HQ->>U: Present architecture for review
             U-->>HQ: Refine via chat or direct edit
