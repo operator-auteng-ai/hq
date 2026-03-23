@@ -299,6 +299,17 @@
 - **Outcome**: Error path now surfaces clearly. Button click either shows progress or a visible error.
 - **Discovery**: **Unit tests with mocked dependencies are necessary but not sufficient.** Both bugs were invisible to Vitest (92 tests passed) and TypeScript (typecheck clean) but immediately visible to any user clicking a button. The Phase Feedback checklist did not require actually running the app.
 
+### v0 / Phase 2.99 — Complete (implemented alongside Phase 2, logged retroactively)
+- **Exit Criteria Met**:
+  - ✅ User enters API key in Settings → key encrypted in SQLite (when Electron `safeStorage` available)
+  - ✅ All agent/planning/chat code uses saved key via `getAnthropicApiKey()` (DB → env fallback)
+  - ✅ Clear error if no key configured (checked in orchestrator, planning engine, chat route, agent spawn route)
+  - ✅ Electron build encrypts via OS keychain (`safeStorage.encryptString()` in `electron/main.ts`)
+  - ✅ Dev mode falls back to `process.env.ANTHROPIC_API_KEY`
+- **Implementation**: `app_settings` table, `lib/services/secrets.ts` (AES-256-GCM encrypt/decrypt, master key from `HQ_MASTER_KEY` env), `/api/settings` route (GET masked + PUT validate), Settings page UI (show/hide, configured badge, encryption status), `electron/main.ts` master key lifecycle (`loadOrCreateMasterKey()` with `safeStorage`)
+- **Testing**: `secrets.test.ts` with encrypt/decrypt roundtrip, settings CRUD, env fallback. Settings E2E tests in `smoke.spec.ts`.
+- **Note**: Task 2.99.6 (update doc-generator) is N/A — doc generator was removed in Phase 6. All current consumers (orchestrator, planning engine, chat, agent spawn) use `getAnthropicApiKey()`.
+
 ## 2026-03-22
 
 ### v0 / Docs — Methodology pivot to "From Vision to Version Number"
