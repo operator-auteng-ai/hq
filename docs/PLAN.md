@@ -434,20 +434,23 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ---
 
-### Phase 8 — Progress Dashboard & Milestone Tree UI
+### Phase 8 — Project Cockpit UI
 
-**From**: Project detail page shows flat phases list and agent cards
-**To**: Visual milestone/phase/task tree with live status, completion percentages, and inline controls
+**From**: Project page uses tabbed layout with separate pages for docs, milestones, agents, chat. Chat hidden in a tab. Planning feedback stuck on create form. Sidebar pushes content off-screen.
+**To**: Three-column cockpit layout: sidebar, center content (active artifact with pipeline nav), always-visible chat panel. Project creation redirects immediately. Pipeline progress appears as system messages in chat.
 
 | Task | Description |
 |------|-------------|
-| 8.1 | Milestone tree component: collapsible tree showing milestones → phases → tasks with status icons and completion bars |
-| 8.2 | Live status updates: poll `/api/projects/:id/milestones` and update tree without full page reload |
-| 8.3 | Inline task controls: start, retry, skip buttons on individual tasks within the tree |
-| 8.4 | Phase review display: show review results inline when phase is in `reviewing` or `review_failed` state |
-| 8.5 | Planning progress view: when project status is `planning`, show skill pipeline progress instead of milestone tree |
+| 8.1 | Three-column layout: sidebar (existing) + center content (flex-grow) + chat panel (fixed 350px right). Fix sidebar overflow bug |
+| 8.2 | Pipeline progress bar: horizontal nav at top of center column showing Vision → Milestones → Architecture → Design → Tasks. Clickable — shows artifact for that level |
+| 8.3 | Center content renderer: renders the active artifact as markdown with mermaid diagrams. Changes based on pipeline level selection |
+| 8.4 | Chat panel always visible: move chat from tab to fixed right panel. Add system message type for pipeline events (visually distinct from user/assistant messages) |
+| 8.5 | Project creation redirect: form creates project then immediately redirects to project page. Planning pipeline runs in background, progress appears as system messages in chat |
+| 8.6 | Milestone/phase/task tree as the "Tasks" level: collapsible tree with status icons, inline start/retry/skip controls |
+| 8.7 | Sub-navigation for Architecture and Design levels: milestone selector for arch docs, phase → component selector for design docs |
+| 8.8 | Update E2E tests for new layout |
 
-**Exit Criteria**: Project detail page shows a navigable milestone tree with live updates. Users can control individual tasks without leaving the tree view.
+**Exit Criteria**: User creates a project → lands on project cockpit → pipeline progress streams in chat panel → user can click pipeline levels to view artifacts → chat is always visible for interaction → milestone tree shows delivery status with inline controls. Sidebar doesn't push content off-screen.
 
 ---
 
