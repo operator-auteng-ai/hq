@@ -21,7 +21,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const navItems = [
   { title: "Dashboard", href: "/", icon: LayoutDashboardIcon },
@@ -81,6 +83,8 @@ export function AppSidebar() {
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
+        <SidebarSeparator />
+        <ThemeToggle />
       </SidebarFooter>
     </Sidebar>
   )
