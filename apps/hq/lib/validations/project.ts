@@ -12,6 +12,7 @@ export const createProjectSchema = z.object({
   model: z
     .enum(["sonnet", "opus", "haiku"])
     .default("sonnet"),
+  isTest: z.boolean().optional().default(false),
 })
 
 export const updateProjectSchema = z.object({

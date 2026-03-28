@@ -125,6 +125,7 @@ test.describe("Smoke: Project detail page", () => {
       data: {
         name: uniqueName,
         prompt: "A test project to verify project detail page renders correctly",
+        isTest: true,
       },
     })
     const project = await res.json()
@@ -151,6 +152,7 @@ test.describe("Smoke: Project detail page", () => {
       data: {
         name: `Overflow Test ${Date.now()}`,
         prompt: "Testing sidebar overflow behavior on project cockpit page",
+        isTest: true,
       },
     })
     const project = await res.json()
@@ -173,6 +175,7 @@ test.describe("Smoke: Project detail page", () => {
       data: {
         name: `Nav Test ${Date.now()}`,
         prompt: "Testing pipeline navigation between levels on project cockpit page",
+        isTest: true,
       },
     })
     const project = await res.json()

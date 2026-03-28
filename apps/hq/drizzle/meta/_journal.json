@@ -36,6 +36,13 @@
       "when": 1774279957811,
       "tag": "0004_thin_hammerhead",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774721302335,
+      "tag": "0005_legal_white_queen",
+      "breakpoints": true
     }
   ]
 }

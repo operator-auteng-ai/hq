@@ -10,7 +10,7 @@ test.describe("Planning pipeline progress UI", () => {
   test("shows skill progress from mocked SSE stream", async ({ page }) => {
     const uniqueName = `Pipeline ${Date.now()}`
     const res = await page.request.post("/api/projects", {
-      data: { name: uniqueName, prompt: "Test planning pipeline UI" },
+      data: { name: uniqueName, prompt: "Test planning pipeline UI", isTest: true },
     })
     const project = await res.json()
 
@@ -64,7 +64,7 @@ test.describe("Milestones tab with mocked data", () => {
   test("renders milestone tree from delivery tracker", async ({ page }) => {
     const uniqueName = `Milestones ${Date.now()}`
     const res = await page.request.post("/api/projects", {
-      data: { name: uniqueName, prompt: "Test milestone tree rendering" },
+      data: { name: uniqueName, prompt: "Test milestone tree rendering", isTest: true },
     })
     const project = await res.json()
 
@@ -184,7 +184,7 @@ test.describe("Milestones tab with mocked data", () => {
   test("shows pipeline nav with pending levels when no milestones", async ({ page }) => {
     const uniqueName = `Empty ${Date.now()}`
     const res = await page.request.post("/api/projects", {
-      data: { name: uniqueName, prompt: "Test empty milestone state" },
+      data: { name: uniqueName, prompt: "Test empty milestone state", isTest: true },
     })
     const project = await res.json()
 
@@ -232,7 +232,7 @@ test.describe("Chat UI with mocked streaming", () => {
   }) => {
     const uniqueName = `Chat ${Date.now()}`
     const res = await page.request.post("/api/projects", {
-      data: { name: uniqueName, prompt: "Test chat UI streaming" },
+      data: { name: uniqueName, prompt: "Test chat UI streaming", isTest: true },
     })
     const project = await res.json()
 
@@ -334,7 +334,7 @@ test.describe("Chat UI with mocked streaming", () => {
   }) => {
     const uniqueName = `ChatCancel ${Date.now()}`
     const res = await page.request.post("/api/projects", {
-      data: { name: uniqueName, prompt: "Test chat cancel action" },
+      data: { name: uniqueName, prompt: "Test chat cancel action", isTest: true },
     })
     const project = await res.json()
 

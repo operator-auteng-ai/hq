@@ -7,6 +7,7 @@ test.describe("Error paths: Project detail page", () => {
       data: {
         name: uniqueName,
         prompt: "Test project for error path E2E testing",
+        isTest: true,
       },
     })
     const project = await res.json()
@@ -32,6 +33,7 @@ test.describe("Error paths: Chat API error handling", () => {
       data: {
         name: uniqueName,
         prompt: "Test chat error handling in E2E",
+        isTest: true,
       },
     })
     const project = await res.json()

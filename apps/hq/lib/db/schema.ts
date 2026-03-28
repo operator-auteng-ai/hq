@@ -11,6 +11,7 @@ export const projects = sqliteTable("projects", {
   status: text("status").notNull().default("draft"),
   workspacePath: text("workspace_path"),
   deployUrl: text("deploy_url"),
+  isTest: integer("is_test").notNull().default(0),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getDb, schema } from "@/lib/db"
 import { createProjectSchema } from "@/lib/validations/project"
-import { eq, not } from "drizzle-orm"
+import { and, eq, not } from "drizzle-orm"
 import { createWorkspace } from "@/lib/services/workspace"
 
 export async function GET(request: NextRequest) {
@@ -9,15 +9,16 @@ export async function GET(request: NextRequest) {
     const db = getDb()
     const status = request.nextUrl.searchParams.get("status")
 
+    const notTest = eq(schema.projects.isTest, 0)
     let query = db.select().from(schema.projects)
 
     if (status === "archived") {
-      query = query.where(eq(schema.projects.status, "archived")) as typeof query
+      query = query.where(and(eq(schema.projects.status, "archived"), notTest)) as typeof query
     } else if (status && status !== "all") {
-      query = query.where(eq(schema.projects.status, status)) as typeof query
+      query = query.where(and(eq(schema.projects.status, status), notTest)) as typeof query
     } else {
       // "all" excludes archived by default
-      query = query.where(not(eq(schema.projects.status, "archived"))) as typeof query
+      query = query.where(and(not(eq(schema.projects.status, "archived")), notTest)) as typeof query
     }
 
     const rows = query.orderBy(schema.projects.createdAt).all().reverse()
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
         id,
         name: parsed.data.name,
         prompt: parsed.data.prompt,
+        isTest: parsed.data.isTest ? 1 : 0,
         status: "draft",
         createdAt: now,
         updatedAt: now,
