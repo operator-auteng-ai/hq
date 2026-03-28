@@ -515,3 +515,35 @@
 - **Action**: Audited all docs against code. Fixed ARCH.md ERD: added `chat_messages` and `app_settings` tables, added `collaboration_profile` to projects, added `exit_criteria` and `review_result` to phases, fixed phase statuses (`reviewing`/`review_failed` not `review`/`feedback`), added `chat_messages` relationship. Updated orchestration layer descriptions to reflect actual implementation. Updated PLAN.md current state to Phase 7 complete with correct test counts (179 + 11).
 - **Outcome**: All docs in sync with code. No stale references or incorrect claims.
 - **Discovery**: None.
+
+## 2026-03-28
+
+### v0 / Phase 8 / Task 8.3 — Artifact Viewer + Docs API Extension
+- **Action**: Created `components/artifact-viewer.tsx` extracting content rendering from project page. Added markdown rendering via `react-markdown` + `remark-gfm` (replacing raw `<pre>` tags). Extended `app/api/projects/[id]/docs/route.ts` to return `archDeltas` (milestone ARCH.md files) and `designDocs` (detailed_design/**/*.md) as `{path, content}[]`.
+- **Outcome**: Docs render as formatted markdown with GFM tables/checkboxes. Architecture and design levels have sub-navigation for their respective doc collections.
+- **Discovery**: Mermaid diagram rendering deferred — `react-markdown` + `remark-gfm` is sufficient for v0. Mermaid would add significant bundle size.
+
+### v0 / Phase 8 / Task 8.4 — System Messages in Chat Panel
+- **Action**: Updated `components/system-message.tsx` with `SystemMessageData` interface. Modified `components/orchestrator-chat.tsx` to accept `systemMessages` prop and interleave them chronologically with chat messages. Updated project page to collect SSE `progress` events as system messages and pass them to the chat panel.
+- **Outcome**: Pipeline events (running, completed, failed, awaiting_review) now appear as compact single-line system messages in the chat timeline with status icons.
+- **Discovery**: None.
+
+### v0 / Phase 8 / Task 8.7 — Architecture & Design Sub-Navigation
+- **Action**: Built sub-navigation into `artifact-viewer.tsx`. Architecture level shows horizontal pill buttons for canonical ARCH.md and per-milestone arch deltas. Design level shows docs grouped by phase directory.
+- **Outcome**: Users can navigate between milestone arch deltas and design docs without leaving the cockpit.
+- **Discovery**: None.
+
+### v0 / Phase 8 / Task 8.8 — E2E Test Updates
+- **Action**: Added 2 new Playwright tests: sidebar toggle overflow check, pipeline level navigation. Fixed all existing E2E tests that broke due to `getByText("Vision")` matching both pipeline nav button and content placeholder — switched to `getByRole("button", { name: "Vision" })`.
+- **Outcome**: 23 E2E tests pass, 185 unit tests pass, TypeScript clean.
+- **Discovery**: Pipeline nav buttons need `role="button"` attribute for Playwright locators — the existing `<button>` elements already provide this.
+
+### v0 / Phase 8 / Registry — New component entries
+- **Action**: Added PipelineNav (molecule), SystemMessage (molecule), ArtifactViewer (component), MilestoneTree (component) to `components/registry/entries.ts`.
+- **Outcome**: Design system registry reflects all Phase 8 components.
+- **Discovery**: None.
+
+### v0 / Phase 8 / Layout — Cockpit edge-to-edge fix
+- **Action**: Added `-m-6` to project page outer div to negate the `p-6` padding from `<main>` in `layout.tsx`, allowing the cockpit to fill edge-to-edge.
+- **Outcome**: Three-column cockpit fills the available viewport without extra padding gaps.
+- **Discovery**: None.

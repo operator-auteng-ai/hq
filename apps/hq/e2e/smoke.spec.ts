@@ -135,12 +135,58 @@ test.describe("Smoke: Project detail page", () => {
     await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
 
     // Should have pipeline nav (cockpit layout)
-    await expect(page.getByText("Vision")).toBeVisible()
-    await expect(page.getByText("Milestones")).toBeVisible()
-    await expect(page.getByText("Tasks")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Vision" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Milestones" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Tasks" })).toBeVisible()
 
     // Chat panel should always be visible (not in a tab)
     await expect(page.getByText("Orchestrator Chat")).toBeVisible()
+
+    // Clean up
+    await page.request.delete(`/api/projects/${project.id}`)
+  })
+
+  test("sidebar toggle does not cause horizontal overflow", async ({ page }) => {
+    const res = await page.request.post("/api/projects", {
+      data: {
+        name: `Overflow Test ${Date.now()}`,
+        prompt: "Testing sidebar overflow behavior on project cockpit page",
+      },
+    })
+    const project = await res.json()
+
+    await page.goto(`/projects/${project.id}`)
+    await expect(page.getByRole("button", { name: "Vision" })).toBeVisible({ timeout: 5000 })
+
+    // Check no horizontal scrollbar on page body
+    const hasHorizontalOverflow = await page.evaluate(() => {
+      return document.documentElement.scrollWidth > document.documentElement.clientWidth
+    })
+    expect(hasHorizontalOverflow).toBe(false)
+
+    // Clean up
+    await page.request.delete(`/api/projects/${project.id}`)
+  })
+
+  test("clicking pipeline level changes visible content", async ({ page }) => {
+    const res = await page.request.post("/api/projects", {
+      data: {
+        name: `Nav Test ${Date.now()}`,
+        prompt: "Testing pipeline navigation between levels on project cockpit page",
+      },
+    })
+    const project = await res.json()
+
+    await page.goto(`/projects/${project.id}`)
+    await expect(page.getByRole("button", { name: "Vision" })).toBeVisible({ timeout: 5000 })
+
+    // Vision is default active — should show placeholder or content
+    await expect(
+      page.getByText("Planning pipeline will generate VISION.md..."),
+    ).toBeVisible()
+
+    // Pending levels should be disabled (not clickable)
+    await expect(page.getByRole("button", { name: "Tasks" })).toBeDisabled()
 
     // Clean up
     await page.request.delete(`/api/projects/${project.id}`)

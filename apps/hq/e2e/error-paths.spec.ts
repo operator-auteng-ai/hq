@@ -17,8 +17,8 @@ test.describe("Error paths: Project detail page", () => {
     await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
 
     // Verify pipeline nav exists (cockpit layout)
-    await expect(page.getByText("Vision")).toBeVisible()
-    await expect(page.getByText("Tasks")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Vision" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Tasks" })).toBeVisible()
 
     // Clean up
     await page.request.delete(`/api/projects/${project.id}`)

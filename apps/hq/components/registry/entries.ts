@@ -90,4 +90,42 @@ export const registryEntries: RegistryEntry[] = [
     description:
       "Collapsible navigation panel with menu items, groups, and footer. Includes SidebarProvider, SidebarTrigger, and mobile sheet variant.",
   },
+  {
+    id: "pipeline-nav",
+    label: "PipelineNav",
+    level: "molecule",
+    sublabel: "Navigation",
+    source: "@/components/pipeline-nav",
+    description:
+      "Horizontal pipeline level navigation with status dots and connectors. Shows 5 decomposition levels: Vision, Milestones, Architecture, Design, Tasks. Clickable when completed or active.",
+  },
+  {
+    id: "system-message",
+    label: "SystemMessage",
+    level: "molecule",
+    sublabel: "Status",
+    source: "@/components/system-message",
+    description:
+      "Compact single-line pipeline event display with icon prefix and timestamp. Icons: running (spinner), completed (check), failed (x), info. Used inline in the chat timeline.",
+  },
+
+  // Components — full feature blocks
+  {
+    id: "artifact-viewer",
+    label: "ArtifactViewer",
+    level: "component",
+    sublabel: "Project",
+    source: "@/components/artifact-viewer",
+    description:
+      "Renders active pipeline artifact based on selected level. Supports markdown with GFM tables/checkboxes. Includes sub-navigation for architecture (milestone arch deltas) and design (phase design docs).",
+  },
+  {
+    id: "milestone-tree",
+    label: "MilestoneTree",
+    level: "component",
+    sublabel: "Project",
+    source: "@/components/milestone-tree",
+    description:
+      "Collapsible delivery tree showing milestones, phases, and tasks with status dots, progress bars, MVP boundary badge, and inline action controls (start/retry/skip/approve/reject).",
+  },
 ]

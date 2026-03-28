@@ -219,8 +219,8 @@ test.describe("Milestones tab with mocked data", () => {
     await page.goto(`/projects/${project.id}`)
 
     // Pipeline nav should be visible with levels
-    await expect(page.getByText("Vision")).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText("Tasks")).toBeVisible()
+    await expect(page.getByRole("button", { name: "Vision" })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole("button", { name: "Tasks" })).toBeVisible()
 
     await page.request.delete(`/api/projects/${project.id}`)
   })

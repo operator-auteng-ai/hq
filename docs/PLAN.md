@@ -2,16 +2,17 @@
 
 ## Current State
 
-Phase 7 complete. Full pipeline operational:
+Phase 8 complete. Full pipeline operational with cockpit UI:
 - Phase 0–2: Skeleton, project creation, agent execution, process management
 - Phase 3: Delivery schema + tracker (milestones, phases, tasks, releases with state machine)
 - Phase 4: Planning skills + engine (4 skills, sequential pipeline with agent completion callbacks)
 - Phase 5: Orchestrator chat (context builder, action extractor, chat UI on project page)
 - Phase 6: Pipeline wired end-to-end (completion callbacks, full skill chaining, old code removed)
 - Phase 7: Orchestrator rewrite (task-level agent assignment, auto-advance, phase review, arch roll-up, collaboration profiles)
-- 179 unit tests + 11 Playwright E2E, TypeScript clean
+- Phase 8: Project cockpit UI (three-column layout, pipeline nav, artifact viewer with markdown rendering, system messages in chat, arch/design sub-navigation, milestone tree)
+- 185 unit tests + 23 Playwright E2E, TypeScript clean
 
-Project creation → planning pipeline (vision → milestones → architecture → design → task extraction) → orchestrator assigns agents to tasks → auto-advances through phases → phase review → milestone completion → arch roll-up. Old doc generator and phase parser removed.
+Project creation → immediate redirect to cockpit → planning pipeline streams progress as system messages in always-visible chat panel → user navigates decomposition levels (vision → milestones → architecture → design → tasks) via pipeline nav bar → artifacts render as markdown with sub-navigation for arch deltas and design docs → milestone tree shows delivery status with inline controls.
 
 ## Future State
 

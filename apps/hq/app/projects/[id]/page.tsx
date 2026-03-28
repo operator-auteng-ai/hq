@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
 import { PipelineNav, type PipelineLevel } from "@/components/pipeline-nav"
-import { MilestoneTree, type MilestoneTreeData } from "@/components/milestone-tree"
+import { type MilestoneTreeData } from "@/components/milestone-tree"
 import { OrchestratorChat } from "@/components/orchestrator-chat"
+import { ArtifactViewer, type ProjectDocs } from "@/components/artifact-viewer"
+import { type SystemMessageData } from "@/components/system-message"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ArrowLeftIcon, ArchiveIcon, FolderIcon } from "lucide-react"
 
@@ -23,13 +25,36 @@ interface Project {
   updatedAt: string
 }
 
-interface ProjectDocs {
-  vision: string | null
-  milestones: string | null
-  arch: string | null
-  plan: string | null
-  taxonomy: string | null
-  codingStandards: string | null
+function mapProgressToIcon(status: string): SystemMessageData["icon"] {
+  switch (status) {
+    case "running":
+      return "running"
+    case "completed":
+      return "completed"
+    case "failed":
+      return "failed"
+    case "awaiting_review":
+      return "info"
+    default:
+      return "info"
+  }
+}
+
+function mapProgressToContent(level: string, status: string, detail?: string): string {
+  const levelLabel = level.charAt(0).toUpperCase() + level.slice(1)
+  if (detail) return `${levelLabel}: ${detail}`
+  switch (status) {
+    case "running":
+      return `${levelLabel} running...`
+    case "completed":
+      return `${levelLabel} completed`
+    case "failed":
+      return `${levelLabel} failed`
+    case "awaiting_review":
+      return `${levelLabel} awaiting review`
+    default:
+      return `${levelLabel}: ${status}`
+  }
 }
 
 export default function ProjectDetailPage({
@@ -47,6 +72,21 @@ export default function ProjectDetailPage({
   const [pipelineRunning, setPipelineRunning] = useState(false)
   const pipelineTriggered = useRef(false)
   const [awaitingReview, setAwaitingReview] = useState<string | null>(null)
+  const [systemMessages, setSystemMessages] = useState<SystemMessageData[]>([])
+
+  const addSystemMessage = useCallback(
+    (content: string, icon: SystemMessageData["icon"]) => {
+      const msg: SystemMessageData = {
+        id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        role: "system",
+        content,
+        icon,
+        timestamp: new Date().toISOString(),
+      }
+      setSystemMessages((prev) => [...prev, msg])
+    },
+    [],
+  )
 
   const loadMilestones = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}/milestones`)
@@ -99,6 +139,8 @@ export default function ProjectDetailPage({
     pipelineTriggered.current = true
     setAwaitingReview(null)
 
+    addSystemMessage("Starting planning pipeline...", "info")
+
     try {
       const profile = project?.collaborationProfile ?? "operator"
       const res = await fetch(`/api/projects/${id}/plan`, {
@@ -124,12 +166,40 @@ export default function ProjectDetailPage({
               } else if (line.startsWith("data: ")) {
                 try {
                   const data = JSON.parse(line.slice(6))
-                  if (currentEvent === "complete" && data.awaitingReview) {
-                    setAwaitingReview(data.awaitingReview)
-                    setPipelineRunning(false) // Allow re-triggering via Continue button
+
+                  if (currentEvent === "progress") {
+                    addSystemMessage(
+                      mapProgressToContent(data.level, data.status, data.detail),
+                      mapProgressToIcon(data.status),
+                    )
+                    // Refresh docs when a level completes
+                    if (data.status === "completed") {
+                      loadDocs()
+                      loadMilestones()
+                    }
+                  }
+
+                  if (currentEvent === "complete") {
+                    if (data.awaitingReview) {
+                      setAwaitingReview(data.awaitingReview)
+                      setPipelineRunning(false)
+                      addSystemMessage(
+                        `Pipeline paused — awaiting review of ${data.awaitingReview}`,
+                        "info",
+                      )
+                    } else {
+                      addSystemMessage("Planning pipeline completed", "completed")
+                    }
+                  }
+
+                  if (currentEvent === "error") {
+                    addSystemMessage(
+                      `Pipeline error: ${data.error ?? "Unknown error"}`,
+                      "failed",
+                    )
                   }
                 } catch {
-                  // ignore
+                  // ignore parse errors
                 }
               }
             }
@@ -137,14 +207,14 @@ export default function ProjectDetailPage({
         }
       }
     } catch {
-      // Pipeline trigger failed
+      addSystemMessage("Pipeline connection failed", "failed")
     } finally {
       setPipelineRunning(false)
       loadProject()
       loadDocs()
       loadMilestones()
     }
-  }, [id, project?.collaborationProfile, pipelineRunning, loadProject, loadDocs, loadMilestones])
+  }, [id, project?.collaborationProfile, pipelineRunning, loadProject, loadDocs, loadMilestones, addSystemMessage])
 
   // Auto-trigger pipeline for draft projects (once only via ref)
   useEffect(() => {
@@ -204,115 +274,6 @@ export default function ProjectDetailPage({
     loadMilestones()
   }
 
-  function renderContent() {
-    switch (activeLevel) {
-      case "vision":
-        if (docs?.vision) {
-          return (
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-              {docs.vision}
-            </pre>
-          )
-        }
-        return (
-          <p className="text-sm text-muted-foreground">
-            Planning pipeline will generate documents...
-          </p>
-        )
-
-      case "milestones":
-        if (docs?.milestones) {
-          return (
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-              {docs.milestones}
-            </pre>
-          )
-        }
-        if (milestones && milestones.milestones.length > 0) {
-          return (
-            <div className="space-y-2">
-              {milestones.milestones.map((m) => (
-                <div key={m.id} className="flex items-center gap-2">
-                  <StatusBadge status={m.status} />
-                  <span className="text-sm">{m.name}</span>
-                  {m.isMvpBoundary === 1 && (
-                    <span className="text-xs text-muted-foreground">&larr; MVP</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )
-        }
-        return (
-          <p className="text-sm text-muted-foreground">
-            Milestones will appear when the pipeline completes.
-          </p>
-        )
-
-      case "architecture":
-        if (docs?.arch) {
-          return (
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-              {docs.arch}
-            </pre>
-          )
-        }
-        return (
-          <p className="text-sm text-muted-foreground">
-            Planning pipeline will generate documents...
-          </p>
-        )
-
-      case "design":
-        if (docs?.codingStandards || docs?.taxonomy) {
-          return (
-            <div className="space-y-6">
-              {docs.taxonomy && (
-                <div>
-                  <h3 className="text-base font-medium mb-2">TAXONOMY.md</h3>
-                  <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {docs.taxonomy}
-                  </pre>
-                </div>
-              )}
-              {docs.codingStandards && (
-                <div>
-                  <h3 className="text-base font-medium mb-2">CODING_STANDARDS.md</h3>
-                  <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {docs.codingStandards}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )
-        }
-        return (
-          <p className="text-sm text-muted-foreground">
-            Planning pipeline will generate documents...
-          </p>
-        )
-
-      case "tasks":
-        if (milestones && milestones.milestones.length > 0) {
-          return (
-            <MilestoneTree
-              data={milestones}
-              onTaskAction={handleTaskAction}
-              onPhaseAction={handlePhaseAction}
-            />
-          )
-        }
-        return (
-          <p className="text-sm text-muted-foreground">
-            Milestones will appear when the pipeline completes.
-          </p>
-        )
-
-      default:
-        return null
-    }
-  }
-
   if (loading) {
     return (
       <div className="space-y-4">
@@ -326,7 +287,7 @@ export default function ProjectDetailPage({
   if (!project) return null
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] overflow-hidden">
+    <div className="-m-6 flex h-[calc(100vh-3rem)] overflow-hidden">
       {/* Center column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header */}
@@ -379,13 +340,19 @@ export default function ProjectDetailPage({
 
         {/* Content area */}
         <div className="flex-1 overflow-auto p-6">
-          {renderContent()}
+          <ArtifactViewer
+            level={activeLevel}
+            docs={docs}
+            milestones={milestones}
+            onTaskAction={handleTaskAction}
+            onPhaseAction={handlePhaseAction}
+          />
         </div>
       </div>
 
       {/* Chat panel - always visible */}
       <div className="w-[350px] shrink-0 border-l border-border flex flex-col overflow-hidden">
-        <OrchestratorChat projectId={id} />
+        <OrchestratorChat projectId={id} systemMessages={systemMessages} />
       </div>
     </div>
   )

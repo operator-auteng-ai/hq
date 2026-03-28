@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SendIcon, Loader2Icon, ZapIcon } from "lucide-react"
+import { SystemMessage, type SystemMessageData } from "@/components/system-message"
 
 interface ChatMessage {
   id: string
@@ -22,9 +23,14 @@ interface ProposedAction {
 
 export interface OrchestratorChatProps {
   projectId: string
+  systemMessages?: SystemMessageData[]
 }
 
-export function OrchestratorChat({ projectId }: OrchestratorChatProps) {
+type TimelineItem =
+  | { kind: "chat"; message: ChatMessage }
+  | { kind: "system"; message: SystemMessageData }
+
+export function OrchestratorChat({ projectId, systemMessages = [] }: OrchestratorChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
@@ -41,9 +47,23 @@ export function OrchestratorChat({ projectId }: OrchestratorChatProps) {
     }
   }, [])
 
+  // Merge chat messages and system messages into a chronological timeline
+  const timeline: TimelineItem[] = useMemo(() => {
+    const items: TimelineItem[] = [
+      ...messages.map((m): TimelineItem => ({ kind: "chat", message: m })),
+      ...systemMessages.map((m): TimelineItem => ({ kind: "system", message: m })),
+    ]
+    items.sort((a, b) => {
+      const aTime = a.kind === "chat" ? a.message.createdAt : a.message.timestamp
+      const bTime = b.kind === "chat" ? b.message.createdAt : b.message.timestamp
+      return aTime.localeCompare(bTime)
+    })
+    return items
+  }, [messages, systemMessages])
+
   useEffect(() => {
     scrollToBottom()
-  }, [messages, streamingContent, scrollToBottom])
+  }, [timeline, streamingContent, scrollToBottom])
 
   // Load chat history on mount
   useEffect(() => {
@@ -240,34 +260,41 @@ export function OrchestratorChat({ projectId }: OrchestratorChatProps) {
 
       {/* Messages - scrollable, fills space */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.length === 0 && !streamingContent && (
+        {timeline.length === 0 && !streamingContent && (
           <p className="text-sm text-muted-foreground text-center py-8">
             Chat with the orchestrator about this project.
           </p>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
+        {timeline.map((item) => {
+          if (item.kind === "system") {
+            return <SystemMessage key={item.message.id} message={item.message} />
+          }
+
+          const msg = item.message
+          return (
             <div
-              className={`max-w-[80%] rounded-lg p-3 ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
-              }`}
+              key={msg.id}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-              <p className="text-xs mt-1 opacity-60">
-                {new Date(msg.createdAt).toLocaleTimeString()}
-              </p>
-              {msg.actionProposed && msg.actionExecuted === 1 && (
-                <p className="text-xs mt-1 opacity-60">Action executed</p>
-              )}
+              <div
+                className={`max-w-[80%] rounded-lg p-3 ${
+                  msg.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                <p className="text-xs mt-1 opacity-60">
+                  {new Date(msg.createdAt).toLocaleTimeString()}
+                </p>
+                {msg.actionProposed && msg.actionExecuted === 1 && (
+                  <p className="text-xs mt-1 opacity-60">Action executed</p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {/* Streaming content */}
         {streamingContent && (
