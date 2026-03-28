@@ -14,6 +14,10 @@ import {
   ShieldAlertIcon,
   Loader2Icon,
 } from "lucide-react"
+import {
+  isThemeHotkeyEnabled,
+  setThemeHotkeyEnabled,
+} from "@/components/theme-provider"
 
 interface ApiKeyInfo {
   configured: boolean
@@ -34,6 +38,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle")
   const [errorMsg, setErrorMsg] = useState("")
+  const [themeHotkey, setThemeHotkey] = useState(true)
+
+  useEffect(() => {
+    setThemeHotkey(isThemeHotkeyEnabled())
+  }, [])
 
   useEffect(() => {
     loadSettings()
@@ -221,6 +230,33 @@ export default function SettingsPage() {
             {encrypted ? " and encrypted with your system keychain" : ""}.
             It is never sent anywhere except directly to the Anthropic API.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Keyboard Shortcuts</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Toggle dark mode with D key</Label>
+              <p className="text-xs text-muted-foreground">
+                Press D (outside of text fields) to switch between light and dark mode.
+              </p>
+            </div>
+            <Button
+              variant={themeHotkey ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                const next = !themeHotkey
+                setThemeHotkey(next)
+                setThemeHotkeyEnabled(next)
+              }}
+            >
+              {themeHotkey ? "On" : "Off"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

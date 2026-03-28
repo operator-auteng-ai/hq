@@ -34,10 +34,40 @@ function isTypingTarget(target: EventTarget | null) {
   )
 }
 
+const THEME_HOTKEY_KEY = "auteng-theme-hotkey-enabled"
+
+function isThemeHotkeyEnabled(): boolean {
+  if (typeof window === "undefined") return false
+  return localStorage.getItem(THEME_HOTKEY_KEY) !== "false"
+}
+
+function setThemeHotkeyEnabled(enabled: boolean) {
+  localStorage.setItem(THEME_HOTKEY_KEY, String(enabled))
+  window.dispatchEvent(new Event("theme-hotkey-changed"))
+}
+
 function ThemeHotkey() {
   const { resolvedTheme, setTheme } = useTheme()
+  const [enabled, setEnabled] = React.useState(true)
 
   React.useEffect(() => {
+    setEnabled(isThemeHotkeyEnabled())
+
+    function onStorageChange() {
+      setEnabled(isThemeHotkeyEnabled())
+    }
+
+    window.addEventListener("theme-hotkey-changed", onStorageChange)
+    window.addEventListener("storage", onStorageChange)
+    return () => {
+      window.removeEventListener("theme-hotkey-changed", onStorageChange)
+      window.removeEventListener("storage", onStorageChange)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (!enabled) return
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat) {
         return
@@ -63,9 +93,9 @@ function ThemeHotkey() {
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [resolvedTheme, setTheme])
+  }, [resolvedTheme, setTheme, enabled])
 
   return null
 }
 
-export { ThemeProvider }
+export { ThemeProvider, isThemeHotkeyEnabled, setThemeHotkeyEnabled }
