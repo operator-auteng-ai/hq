@@ -8,8 +8,9 @@ import { SystemMessage, type SystemMessageData } from "@/components/system-messa
 
 interface ChatMessage {
   id: string
-  role: "user" | "assistant"
+  role: "user" | "assistant" | "system"
   content: string
+  icon?: string | null
   actionProposed?: string | null
   actionExecuted?: number
   createdAt: string
@@ -49,10 +50,34 @@ export function OrchestratorChat({ projectId, systemMessages = [] }: Orchestrato
 
   // Merge chat messages and system messages into a chronological timeline
   const timeline: TimelineItem[] = useMemo(() => {
-    const items: TimelineItem[] = [
-      ...messages.map((m): TimelineItem => ({ kind: "chat", message: m })),
-      ...systemMessages.map((m): TimelineItem => ({ kind: "system", message: m })),
-    ]
+    const items: TimelineItem[] = []
+    const dbSystemContents = new Set<string>()
+
+    for (const m of messages) {
+      if (m.role === "system") {
+        dbSystemContents.add(m.content)
+        items.push({
+          kind: "system",
+          message: {
+            id: m.id,
+            role: "system",
+            content: m.content,
+            icon: (m.icon as SystemMessageData["icon"]) ?? "info",
+            timestamp: m.createdAt,
+          },
+        })
+      } else {
+        items.push({ kind: "chat", message: m })
+      }
+    }
+
+    // Add live system messages that aren't already persisted in DB
+    for (const sm of systemMessages) {
+      if (!dbSystemContents.has(sm.content)) {
+        items.push({ kind: "system", message: sm })
+      }
+    }
+
     items.sort((a, b) => {
       const aTime = a.kind === "chat" ? a.message.createdAt : a.message.timestamp
       const bTime = b.kind === "chat" ? b.message.createdAt : b.message.timestamp

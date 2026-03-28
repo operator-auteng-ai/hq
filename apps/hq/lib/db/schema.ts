@@ -185,6 +185,7 @@ export const chatMessages = sqliteTable("chat_messages", {
     .references(() => projects.id, { onDelete: "cascade" }),
   role: text("role").notNull(),
   content: text("content").notNull(),
+  icon: text("icon"),
   actionProposed: text("action_proposed"),
   actionExecuted: integer("action_executed").notNull().default(0),
   createdAt: text("created_at")

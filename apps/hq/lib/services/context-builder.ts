@@ -154,8 +154,9 @@ export function loadChatHistory(
     .orderBy(asc(schema.chatMessages.createdAt))
     .all()
 
-  // Take last N messages
-  const recent = messages.slice(-limit)
+  // Filter out system messages (Claude API expects user/assistant only)
+  // then take last N messages
+  const recent = messages.filter((m) => m.role !== "system").slice(-limit)
 
   return recent.map((m) => ({
     role: m.role,

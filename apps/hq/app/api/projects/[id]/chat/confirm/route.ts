@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { getDb, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { getDeliveryTracker } from "@/lib/services/delivery-tracker"
+import { getPlanningEngine } from "@/lib/services/planning-engine"
+import type { SkillName } from "@/lib/services/planning-engine"
+import { getAnthropicApiKey } from "@/lib/services/secrets"
 import type { ProposedAction } from "@/lib/services/action-extractor"
 import { z } from "zod"
+
+const VALID_SKILLS: SkillName[] = ["vision", "milestones", "architecture", "design"]
 
 type RouteParams = { params: Promise<{ id: string }> }
 
@@ -129,6 +134,43 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
               }
             }
             results.push({ action: action.action, result: { phaseId: action.entityId, status: "active" } })
+            break
+          }
+
+          case "runSkill": {
+            const parts = action.entityId.split(/\s+/)
+            const skillName = parts[0] as SkillName
+            const milestoneName = parts.slice(1).join(" ") || undefined
+
+            if (!VALID_SKILLS.includes(skillName)) {
+              results.push({ action: action.action, result: { error: `Invalid skill: ${skillName}` } })
+              break
+            }
+
+            const apiKey = getAnthropicApiKey()
+            if (!apiKey) {
+              results.push({ action: action.action, result: { error: "No API key configured" } })
+              break
+            }
+
+            const engine = getPlanningEngine()
+            const skillResult = await engine.runSkill(
+              id,
+              skillName,
+              { model: "sonnet", apiKey },
+              milestoneName ? { milestoneName } : undefined,
+            )
+
+            results.push({
+              action: action.action,
+              result: {
+                skillName,
+                milestoneName,
+                agentId: skillResult.agentId,
+                success: skillResult.success,
+                error: skillResult.error,
+              },
+            })
             break
           }
 

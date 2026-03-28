@@ -57,9 +57,58 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const encoder = new TextEncoder()
+
+    function persistSystemMessage(content: string, icon: string) {
+      db.insert(schema.chatMessages)
+        .values({
+          id: crypto.randomUUID(),
+          projectId: id,
+          role: "system",
+          content,
+          icon,
+        })
+        .run()
+    }
+
+    const STATUS_ICON_MAP: Record<string, string> = {
+      running: "running",
+      completed: "completed",
+      failed: "failed",
+      awaiting_review: "info",
+    }
+
+    function formatProgressContent(
+      level: string,
+      status: string,
+      detail?: string,
+    ): string {
+      const label = level.charAt(0).toUpperCase() + level.slice(1)
+      if (detail) return `${label}: ${detail}`
+      switch (status) {
+        case "running":
+          return `${label} running...`
+        case "completed":
+          return `${label} completed`
+        case "failed":
+          return `${label} failed`
+        case "awaiting_review":
+          return `${label} awaiting review`
+        default:
+          return `${label}: ${status}`
+      }
+    }
+
     const stream = new ReadableStream({
       async start(controller) {
         const emit = (event: PlanningProgressEvent) => {
+          const icon = STATUS_ICON_MAP[event.status] ?? "info"
+          const content = formatProgressContent(
+            event.level,
+            event.status,
+            event.detail,
+          )
+          persistSystemMessage(content, icon)
+
           try {
             controller.enqueue(
               encoder.encode(
@@ -85,6 +134,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             emit,
           )
 
+          if (result.awaitingReview) {
+            persistSystemMessage(
+              `Pipeline paused \u2014 awaiting review of ${result.awaitingReview}`,
+              "info",
+            )
+          } else {
+            persistSystemMessage("Planning pipeline completed", "completed")
+          }
+
           controller.enqueue(
             encoder.encode(
               `event: complete\ndata: ${JSON.stringify(result)}\n\n`,
@@ -93,6 +151,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         } catch (err: unknown) {
           const message =
             err instanceof Error ? err.message : "Planning pipeline failed"
+
+          persistSystemMessage(`Pipeline error: ${message}`, "failed")
+
           controller.enqueue(
             encoder.encode(
               `event: error\ndata: ${JSON.stringify({ error: message })}\n\n`,

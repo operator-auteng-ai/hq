@@ -43,6 +43,13 @@
       "when": 1774721302335,
       "tag": "0005_legal_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774722845153,
+      "tag": "0006_wakeful_scream",
+      "breakpoints": true
     }
   ]
 }
