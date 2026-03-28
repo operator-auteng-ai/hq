@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/status-badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlusIcon, FolderOpenIcon } from "lucide-react"
+import { timeAgo } from "@/lib/time-ago"
 
 interface Project {
   id: string
@@ -145,7 +146,7 @@ export default function ProjectsPage() {
                     {project.prompt}
                   </p>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Created {new Date(project.createdAt).toLocaleDateString()}
+                    Created {timeAgo(project.createdAt)}
                   </p>
                 </CardContent>
               </Card>

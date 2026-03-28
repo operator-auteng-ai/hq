@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
 import { XIcon, PlayIcon, MonitorIcon } from "lucide-react"
+import { timeAgo } from "@/lib/time-ago"
 
 interface AgentRun {
   id: string
@@ -55,7 +56,7 @@ export function AgentCard({
             {agent.costUsd !== null && (
               <span>${agent.costUsd.toFixed(4)}</span>
             )}
-            <span>{new Date(agent.createdAt).toLocaleTimeString()}</span>
+            <span>{timeAgo(agent.createdAt)}</span>
           </div>
         </div>
         <div className="ml-4 flex gap-1">
