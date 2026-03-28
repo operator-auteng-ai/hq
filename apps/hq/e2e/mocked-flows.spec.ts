@@ -168,7 +168,7 @@ test.describe("Milestones tab with mocked data", () => {
     })
 
     await page.goto(`/projects/${project.id}`)
-    await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(uniqueName).first()).toBeVisible({ timeout: 5000 })
 
     // Click Tasks level in pipeline nav
     await page.getByText("Tasks").click()

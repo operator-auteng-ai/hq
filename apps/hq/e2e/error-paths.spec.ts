@@ -14,8 +14,8 @@ test.describe("Error paths: Project detail page", () => {
 
     await page.goto(`/projects/${project.id}`)
 
-    // Verify project page loads
-    await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
+    // Verify project page loads (matches in sidebar and header — use first)
+    await expect(page.getByText(uniqueName).first()).toBeVisible({ timeout: 5000 })
 
     // Verify pipeline nav exists (cockpit layout)
     await expect(page.getByRole("button", { name: "Vision" })).toBeVisible()

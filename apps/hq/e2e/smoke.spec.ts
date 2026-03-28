@@ -132,8 +132,8 @@ test.describe("Smoke: Project detail page", () => {
 
     await page.goto(`/projects/${project.id}`)
 
-    // Should show project name
-    await expect(page.getByText(uniqueName)).toBeVisible({ timeout: 5000 })
+    // Should show project name (matches in sidebar and header — use first)
+    await expect(page.getByText(uniqueName).first()).toBeVisible({ timeout: 5000 })
 
     // Should have pipeline nav (cockpit layout)
     await expect(page.getByRole("button", { name: "Vision" })).toBeVisible()
