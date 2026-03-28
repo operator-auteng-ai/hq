@@ -198,9 +198,16 @@ export class AgentManager {
     accumulator?.stop()
     this.accumulators.delete(agentId)
 
-    // Update DB
+    // Update DB and persist completion system message
     try {
       const db = getDb()
+
+      // Read run metadata before updating
+      const run = db.select()
+        .from(schema.agentRuns)
+        .where(eq(schema.agentRuns.id, agentId))
+        .get()
+
       db.update(schema.agentRuns)
         .set({
           status,
@@ -210,6 +217,27 @@ export class AgentManager {
         })
         .where(eq(schema.agentRuns.id, agentId))
         .run()
+
+      // Insert a system chat message for the project
+      if (run?.projectId && run.phaseLabel) {
+        const label = run.phaseLabel.charAt(0).toUpperCase() + run.phaseLabel.slice(1)
+        const iconMap: Record<string, string> = {
+          completed: "completed",
+          failed: "failed",
+          cancelled: "failed",
+        }
+        const icon = iconMap[status] ?? "info"
+        const suffix = status === "completed" ? "completed" : status
+        db.insert(schema.chatMessages)
+          .values({
+            id: crypto.randomUUID(),
+            projectId: run.projectId,
+            role: "system",
+            content: `${label} agent ${suffix}`,
+            icon,
+          })
+          .run()
+      }
     } catch (err) {
       console.error(`Failed to update agent ${agentId} status:`, err)
     }
