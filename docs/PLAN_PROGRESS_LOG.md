@@ -598,3 +598,47 @@
   - PLAN.md: Updated current state and dependency graph. Phases renumbered (old 9→11, old 10→12).
   - No orphaned TODOs or undocumented decisions.
   - Design system registry: No new registry entries needed — `AgentList` is a composition of existing `AgentCard` components, not a new atomic/molecule.
+
+### v0 / Phase 10 / Task 10.1 — Audit pipeline UI state
+- **Action**: Traced all `useState`/`useRef` in the cockpit page (`projects/[id]/page.tsx`) and `orchestrator-chat.tsx`. Documented 5 transient states: `awaitingReview`, `activeLevel`, `systemMessages`, `pipelineRunning`, `pipelineTriggered`.
+- **Outcome**: Identified that `awaitingReview` and `activeLevel` are the critical losses. System messages already persisted to DB. `pipelineRunning` derivable from project status.
+- **Discovery**: `project.planningStep` in the DB stores the *next* step to run, so the *completed* level is derivable by mapping backwards (e.g., `planningStep === "milestones"` means vision just completed).
+
+### v0 / Phase 10 / Task 10.2 — Persist gate states
+- **Action**: Added `stepToReviewLevel()` function that maps `planningStep` → the pipeline level awaiting review. On initial load, if `project.status === "planning"` and `planningStep` indicates a completed level, `awaitingReview` is set and the review banner appears. Also sets `pipelineTriggered.current = true` to prevent re-trigger.
+- **Outcome**: Review banner with "Continue Pipeline" button survives page refresh.
+- **Discovery**: None.
+
+### v0 / Phase 10 / Task 10.3 — Persist active pipeline level
+- **Action**: Added `deriveActiveLevel()` that picks the best level to display based on `planningStep`, project status, and completed levels. Runs once on initial load via `initialLevelSet` ref guard. Prioritizes the review level if awaiting review, otherwise shows the highest completed level.
+- **Outcome**: Refreshing the cockpit returns to the correct pipeline level instead of always resetting to "vision".
+- **Discovery**: None.
+
+### v0 / Phase 10 / Task 10.4 — Chat message persistence verification
+- **Action**: Verified that the plan route (`/api/projects/:id/plan`) already persists system messages to `chatMessages` table with `role: "system"`. The chat component loads these on mount via `loadHistory()` and deduplicates against live SSE messages.
+- **Outcome**: Confirmed working — no changes needed.
+- **Discovery**: None.
+
+### v0 / Phase 10 / Task 10.5 — Agent run status reconciliation
+- **Action**: Added `reconcileStaleRuns()` function in `agent-manager.ts` that runs once when the singleton is first created. Queries all `running`/`queued` agent runs in DB, checks each against the in-memory agent map, and marks untracked ones as `failed` with a `completedAt` timestamp.
+- **Outcome**: After app restart, orphaned agent runs are marked failed instead of staying stuck in "running" forever.
+- **Discovery**: None.
+
+### v0 / Phase 10 / Task 10.6 — E2E smoke tests
+- **Action**: Created `e2e/state-persistence.spec.ts` with 4 tests: review banner survives refresh, completed pipeline level selected after refresh, chat history survives refresh, draft project with planningStep doesn't re-trigger. Also added `planningStep` to `updateProjectSchema` for test fixtures. Fixed pre-existing strict mode violation in `mocked-flows.spec.ts` (`getByText("Tasks")` → `getByRole("button", { name: "Tasks" })`).
+- **Outcome**: 35 Playwright E2E tests pass (4 new), 195 unit tests pass, TypeScript clean.
+- **Discovery**: Milestone tree mock data must include a `progress` object with `totalMilestones`, `completedMilestones`, etc. — the component reads `progress.completedMilestones` and crashes without it.
+
+### v0 / Phase 10 — Complete
+- **Exit Criteria Met**:
+  - ✅ Review banner ("Continue Pipeline") survives page refresh
+  - ✅ Active pipeline level persists across refresh (derived from planningStep + completedLevels)
+  - ✅ Chat history (system messages + user/assistant) intact after refresh
+  - ✅ Agent statuses reconciled on startup (stale running → failed)
+  - ✅ Draft projects with existing planningStep don't re-trigger pipeline
+  - ✅ 35 E2E tests pass, 195 unit tests pass, TypeScript clean
+- **Feedback**:
+  - ARCH.md: No updates needed — state reconstruction is an implementation detail, not an architecture change.
+  - TAXONOMY.md: No new terms.
+  - PLAN.md: Updated current state and dependency graph.
+  - No orphaned TODOs or undocumented decisions.

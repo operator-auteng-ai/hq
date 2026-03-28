@@ -11,7 +11,8 @@ Phase 9 complete. Full pipeline operational with project-scoped navigation:
 - Phase 7: Orchestrator rewrite (task-level agent assignment, auto-advance, phase review, arch roll-up, collaboration profiles)
 - Phase 8: Project cockpit UI (three-column layout, pipeline nav, artifact viewer with markdown rendering, system messages in chat, arch/design sub-navigation, milestone tree)
 - Phase 9: Project-scoped navigation (context-aware sidebar with global/project modes, project agents/deploys routes, shared AgentList component, cross-project agent name joins)
-- 195 unit tests + 31 Playwright E2E, TypeScript clean
+- Phase 10: Pipeline state persistence (gate states, active level, and agent statuses reconstructed from DB on refresh; stale agent reconciliation on startup)
+- 195 unit tests + 35 Playwright E2E, TypeScript clean
 
 Project creation → immediate redirect to cockpit → sidebar switches to project-scoped nav (Cockpit, Agents, Deploys) with project name and status visible → planning pipeline streams progress as system messages in always-visible chat panel → user navigates decomposition levels (vision → milestones → architecture → design → tasks) via pipeline nav bar → artifacts render as markdown with sub-navigation for arch deltas and design docs → milestone tree shows delivery status with inline controls. "← All Projects" returns to global view.
 
@@ -608,7 +609,7 @@ graph TD
     P6 --> P7["Phase 7: Orchestrator Rewrite"]
     P7 --> P8["Phase 8: Project Cockpit UI"]
     P8 --> P9["Phase 9: Project-Scoped Nav ✅"]
-    P8 --> P10["Phase 10: Pipeline State Persistence"]
+    P8 --> P10["Phase 10: Pipeline State Persistence ✅"]
     P9 --> P11["Phase 11: Skill Quality & Recovery"]
     P10 --> P11
     P11 --> P12["Phase 12: E2E Hardening"]
