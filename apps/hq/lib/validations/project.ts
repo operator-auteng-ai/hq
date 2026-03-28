@@ -22,6 +22,7 @@ export const updateProjectSchema = z.object({
     .optional(),
   deployUrl: z.string().url().optional(),
   workspacePath: z.string().optional(),
+  planningStep: z.string().optional(),
 })
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>

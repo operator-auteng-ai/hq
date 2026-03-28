@@ -512,10 +512,61 @@ export class AgentManager {
   }
 }
 
+/**
+ * Reconcile stale agent runs on startup.
+ * Agents stuck in "running" or "queued" that aren't tracked in-memory
+ * were interrupted by an app restart — mark them as "failed".
+ */
+function reconcileStaleRuns(manager: AgentManager): void {
+  try {
+    const db = getDb()
+    const staleRuns = db
+      .select({ id: schema.agentRuns.id })
+      .from(schema.agentRuns)
+      .where(
+        and(
+          eq(schema.agentRuns.status, "running"),
+        ),
+      )
+      .all()
+
+    const queuedRuns = db
+      .select({ id: schema.agentRuns.id })
+      .from(schema.agentRuns)
+      .where(eq(schema.agentRuns.status, "queued"))
+      .all()
+
+    const allStale = [...staleRuns, ...queuedRuns]
+    let reconciled = 0
+
+    for (const run of allStale) {
+      // If the agent is tracked in-memory, it's genuinely running
+      if (manager.getStatus(run.id) !== undefined) continue
+
+      db.update(schema.agentRuns)
+        .set({
+          status: "failed",
+          completedAt: new Date().toISOString(),
+        })
+        .where(eq(schema.agentRuns.id, run.id))
+        .run()
+      reconciled++
+    }
+
+    if (reconciled > 0) {
+      console.log(`Reconciled ${reconciled} stale agent run(s) → failed`)
+    }
+  } catch (err) {
+    console.error("Failed to reconcile stale agent runs:", err)
+  }
+}
+
 export function getAgentManager(): AgentManager {
   const g = globalThis as Record<symbol, AgentManager | undefined>
   if (!g[AGENT_MANAGER_KEY]) {
-    g[AGENT_MANAGER_KEY] = new AgentManager()
+    const manager = new AgentManager()
+    g[AGENT_MANAGER_KEY] = manager
+    reconcileStaleRuns(manager)
   }
   return g[AGENT_MANAGER_KEY]
 }

@@ -25,6 +25,39 @@ interface Project {
   updatedAt: string
 }
 
+/**
+ * Maps a planningStep value to the pipeline level that just completed
+ * and is awaiting review. planningStep stores the *next* step to run,
+ * so we return the level that precedes it.
+ */
+function stepToReviewLevel(step: string | null): PipelineLevel | null {
+  if (!step || step === "init" || step === "complete") return null
+  if (step === "milestones") return "vision"
+  if (step.startsWith("architecture")) return "milestones"
+  if (step.startsWith("design")) return "architecture"
+  // If step is "vision", pipeline hasn't completed vision yet — no review
+  return null
+}
+
+/**
+ * Determines the best active pipeline level to show based on project state.
+ */
+function deriveActiveLevel(
+  step: string | null,
+  status: string,
+  completedLevels: PipelineLevel[],
+): PipelineLevel {
+  // If awaiting review, show the completed level
+  const reviewLevel = stepToReviewLevel(step)
+  if (status === "planning" && reviewLevel) return reviewLevel
+
+  // Show the highest completed level, or vision as fallback
+  if (completedLevels.length > 0) {
+    return completedLevels[completedLevels.length - 1]
+  }
+  return "vision"
+}
+
 function mapProgressToIcon(status: string): SystemMessageData["icon"] {
   switch (status) {
     case "running":
@@ -73,6 +106,7 @@ export default function ProjectDetailPage({
   const pipelineTriggered = useRef(false)
   const [awaitingReview, setAwaitingReview] = useState<string | null>(null)
   const [systemMessages, setSystemMessages] = useState<SystemMessageData[]>([])
+  const initialStateApplied = useRef(false)
 
   const addSystemMessage = useCallback(
     (content: string, icon: SystemMessageData["icon"]) => {
@@ -124,6 +158,47 @@ export default function ProjectDetailPage({
     loadProject()
   }, [loadProject])
 
+  // Reconstruct gate/level state from DB on initial load
+  useEffect(() => {
+    if (!project || initialStateApplied.current) return
+    initialStateApplied.current = true
+
+    // Derive awaiting review from planningStep
+    const reviewLevel = stepToReviewLevel(project.planningStep)
+    if (project.status === "planning" && reviewLevel) {
+      setAwaitingReview(reviewLevel)
+      // Pipeline is paused, not actively running
+      setPipelineRunning(false)
+      pipelineTriggered.current = true // Prevent auto-trigger
+    }
+
+    // If project already has a planningStep, it's been triggered before
+    if (project.planningStep && project.planningStep !== "init") {
+      pipelineTriggered.current = true
+    }
+  }, [project])
+
+  // Derive active level once docs/milestones load (only on initial load)
+  const initialLevelSet = useRef(false)
+  useEffect(() => {
+    if (!project || !docs || initialLevelSet.current) return
+    // Wait until we have docs so completedLevels is accurate
+    const completed: PipelineLevel[] = []
+    if (docs.vision) completed.push("vision")
+    // milestones may still be loading, but we can set a reasonable default
+    if (milestones && milestones.milestones.length > 0) {
+      completed.push("milestones")
+      if (milestones.milestones.some((m) => m.phases.length > 0)) completed.push("architecture")
+      if (milestones.milestones.some((m) => m.phases.some((p) => p.tasks.length > 0))) {
+        completed.push("design")
+        completed.push("tasks")
+      }
+    }
+    const derived = deriveActiveLevel(project.planningStep, project.status, completed)
+    setActiveLevel(derived)
+    initialLevelSet.current = true
+  }, [project, docs, milestones])
+
   // Poll milestones every 5s
   useEffect(() => {
     const interval = setInterval(() => {
@@ -132,7 +207,8 @@ export default function ProjectDetailPage({
     return () => clearInterval(interval)
   }, [loadMilestones])
 
-  // Trigger pipeline for draft projects or resume after review
+  // Trigger pipeline for draft projects (once only via ref)
+  // Guard: only auto-trigger if status is draft AND pipeline hasn't started
   const triggerPipeline = useCallback(async () => {
     if (pipelineRunning) return
     setPipelineRunning(true)
@@ -216,16 +292,20 @@ export default function ProjectDetailPage({
     }
   }, [id, project?.collaborationProfile, pipelineRunning, loadProject, loadDocs, loadMilestones, addSystemMessage])
 
-  // Auto-trigger pipeline for draft projects (once only via ref)
+  // Auto-trigger pipeline for draft projects that haven't started planning
   useEffect(() => {
-    if (project?.status === "draft" && !pipelineTriggered.current) {
+    if (
+      project?.status === "draft" &&
+      !project.planningStep &&
+      !pipelineTriggered.current
+    ) {
       triggerPipeline()
     }
-  }, [project?.status, triggerPipeline])
+  }, [project?.status, project?.planningStep, triggerPipeline])
 
-  // Auto-set active level to the awaiting review level
+  // Auto-set active level to the awaiting review level (from SSE events)
   useEffect(() => {
-    if (awaitingReview) {
+    if (awaitingReview && initialLevelSet.current) {
       setActiveLevel(awaitingReview as PipelineLevel)
     }
   }, [awaitingReview])
@@ -246,9 +326,9 @@ export default function ProjectDetailPage({
     }
   }
 
-  // Determine running level based on project status
+  // Determine running level based on project status and pipeline state
   const runningLevel: PipelineLevel | null =
-    project?.status === "planning" ? "vision" : null
+    (project?.status === "planning" && pipelineRunning) ? "vision" : null
 
   async function handleArchive() {
     if (!project) return

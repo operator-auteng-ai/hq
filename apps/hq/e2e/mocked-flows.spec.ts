@@ -171,7 +171,7 @@ test.describe("Milestones tab with mocked data", () => {
     await expect(page.getByText(uniqueName).first()).toBeVisible({ timeout: 5000 })
 
     // Click Tasks level in pipeline nav
-    await page.getByText("Tasks").click()
+    await page.getByRole("button", { name: "Tasks" }).click()
 
     // Verify milestone names in the tree
     await expect(page.getByText("Core Invoicing")).toBeVisible({ timeout: 5000 })
