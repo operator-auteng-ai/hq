@@ -9,6 +9,7 @@ import { timeAgo } from "@/lib/time-ago"
 interface AgentRun {
   id: string
   projectId: string
+  phaseLabel: string | null
   prompt: string
   status: string
   model: string | null
@@ -17,6 +18,14 @@ interface AgentRun {
   createdAt: string
   completedAt: string | null
   sessionId: string | null
+}
+
+const INSTRUCTION_DELIMITER = "\n\nInstruction for this run:\n"
+
+function extractInstruction(prompt: string): string | null {
+  const idx = prompt.indexOf(INSTRUCTION_DELIMITER)
+  if (idx === -1) return null
+  return prompt.slice(idx + INSTRUCTION_DELIMITER.length).trim()
 }
 
 export function AgentCard({
@@ -37,12 +46,20 @@ export function AgentCard({
     (agent.status === "failed" || agent.status === "cancelled") &&
     agent.sessionId !== null
 
+  const instruction = extractInstruction(agent.prompt)
+  const label = agent.phaseLabel
+    ? agent.phaseLabel.charAt(0).toUpperCase() + agent.phaseLabel.slice(1)
+    : null
+
   return (
     <Card>
       <CardContent className="flex items-center justify-between py-4">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
             <StatusBadge status={agent.status} />
+            {label && (
+              <span className="text-sm font-medium">{label}</span>
+            )}
             {projectName && (
               <span className="text-xs text-muted-foreground">{projectName}</span>
             )}
@@ -50,7 +67,9 @@ export function AgentCard({
               <span className="text-xs text-muted-foreground">{agent.model}</span>
             )}
           </div>
-          <p className="truncate text-sm">{agent.prompt}</p>
+          {instruction && (
+            <p className="line-clamp-2 text-sm text-muted-foreground">{instruction}</p>
+          )}
           <div className="flex gap-3 text-xs text-muted-foreground">
             {agent.turnCount !== null && <span>{agent.turnCount} turns</span>}
             {agent.costUsd !== null && (

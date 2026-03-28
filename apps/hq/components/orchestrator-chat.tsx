@@ -254,7 +254,11 @@ export function OrchestratorChat({ projectId, systemMessages = [] }: Orchestrato
 
       if (res.ok && confirm) {
         const data = await res.json()
-        const errors = (data.results as Array<{ action: string; result: { error?: string } }>)
+        const results = data.results as Array<{
+          action: string
+          result: { error?: string; skillName?: string; agentId?: string }
+        }>
+        const errors = results
           ?.filter((r) => r.result?.error)
           ?.map((r) => `${r.action}: ${r.result.error}`)
 
@@ -276,6 +280,22 @@ export function OrchestratorChat({ projectId, systemMessages = [] }: Orchestrato
                 : m,
             ),
           )
+
+          // Show details for runSkill actions
+          for (const r of results ?? []) {
+            if (r.action === "runSkill" && r.result.skillName) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `skill-${Date.now()}`,
+                  role: "system",
+                  content: `Spawned ${r.result.skillName} agent (${r.result.agentId?.slice(0, 8) ?? "?"})`,
+                  icon: "running",
+                  createdAt: new Date().toISOString(),
+                },
+              ])
+            }
+          }
         }
       }
     } catch {

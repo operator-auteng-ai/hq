@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 interface AgentRun {
   id: string
   projectId: string
+  phaseLabel: string | null
   prompt: string
   status: string
   model: string | null
