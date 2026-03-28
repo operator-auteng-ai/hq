@@ -90,21 +90,33 @@ export function OrchestratorChat({ projectId, systemMessages = [] }: Orchestrato
     scrollToBottom()
   }, [timeline, streamingContent, scrollToBottom])
 
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/chat`)
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(data.messages ?? [])
+      }
+    } catch {
+      // ignore load errors
+    }
+  }, [projectId])
+
   // Load chat history on mount
   useEffect(() => {
-    async function loadHistory() {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/chat`)
-        if (res.ok) {
-          const data = await res.json()
-          setMessages(data.messages ?? [])
-        }
-      } catch {
-        // ignore load errors
-      }
-    }
     loadHistory()
-  }, [projectId])
+  }, [loadHistory])
+
+  // Poll for new messages while any system message shows "running"
+  useEffect(() => {
+    const hasRunning = messages.some(
+      (m) => m.role === "system" && m.icon === "running",
+    )
+    if (!hasRunning) return
+
+    const interval = setInterval(loadHistory, 3000)
+    return () => clearInterval(interval)
+  }, [messages, loadHistory])
 
   async function handleSend() {
     const text = input.trim()
@@ -281,21 +293,8 @@ export function OrchestratorChat({ projectId, systemMessages = [] }: Orchestrato
             ),
           )
 
-          // Show details for runSkill actions
-          for (const r of results ?? []) {
-            if (r.action === "runSkill" && r.result.skillName) {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: `skill-${Date.now()}`,
-                  role: "system",
-                  content: `Spawned ${r.result.skillName} agent (${r.result.agentId?.slice(0, 8) ?? "?"})`,
-                  icon: "running",
-                  createdAt: new Date().toISOString(),
-                },
-              ])
-            }
-          }
+          // Reload to pick up server-persisted system messages (e.g., "Vision agent running...")
+          loadHistory()
         }
       }
     } catch {

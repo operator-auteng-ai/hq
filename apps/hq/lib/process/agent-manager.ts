@@ -1,5 +1,5 @@
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk"
-import { eq } from "drizzle-orm"
+import { eq, and } from "drizzle-orm"
 import { getDb, schema } from "@/lib/db"
 import { getProcessRegistry } from "./process-registry"
 import { createHqMcpServer } from "./hq-mcp-server"
@@ -218,9 +218,10 @@ export class AgentManager {
         .where(eq(schema.agentRuns.id, agentId))
         .run()
 
-      // Insert a system chat message for the project
+      // Update the "running" system message to show completion status
       if (run?.projectId && run.phaseLabel) {
         const label = run.phaseLabel.charAt(0).toUpperCase() + run.phaseLabel.slice(1)
+        const runningContent = `${label} agent running...`
         const iconMap: Record<string, string> = {
           completed: "completed",
           failed: "failed",
@@ -228,15 +229,34 @@ export class AgentManager {
         }
         const icon = iconMap[status] ?? "info"
         const suffix = status === "completed" ? "completed" : status
-        db.insert(schema.chatMessages)
-          .values({
-            id: crypto.randomUUID(),
-            projectId: run.projectId,
-            role: "system",
+
+        // Try to update the existing "running" message first
+        const updated = db.update(schema.chatMessages)
+          .set({
             content: `${label} agent ${suffix}`,
             icon,
           })
+          .where(
+            and(
+              eq(schema.chatMessages.projectId, run.projectId),
+              eq(schema.chatMessages.content, runningContent),
+              eq(schema.chatMessages.role, "system"),
+            ),
+          )
           .run()
+
+        // If no running message was found, insert a new one
+        if (updated.changes === 0) {
+          db.insert(schema.chatMessages)
+            .values({
+              id: crypto.randomUUID(),
+              projectId: run.projectId,
+              role: "system",
+              content: `${label} agent ${suffix}`,
+              icon,
+            })
+            .run()
+        }
       }
     } catch (err) {
       console.error(`Failed to update agent ${agentId} status:`, err)

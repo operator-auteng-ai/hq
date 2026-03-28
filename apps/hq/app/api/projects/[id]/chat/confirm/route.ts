@@ -161,6 +161,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
               { milestoneName, instruction: message.content },
             )
 
+            // Persist a "running" system message for the spawned agent
+            if (skillResult.success) {
+              const label = skillName.charAt(0).toUpperCase() + skillName.slice(1)
+              db.insert(schema.chatMessages)
+                .values({
+                  id: crypto.randomUUID(),
+                  projectId: id,
+                  role: "system",
+                  content: `${label} agent running...`,
+                  icon: "running",
+                })
+                .run()
+            }
+
             results.push({
               action: action.action,
               result: {
