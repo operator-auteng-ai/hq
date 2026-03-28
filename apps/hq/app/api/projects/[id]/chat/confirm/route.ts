@@ -158,7 +158,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
               id,
               skillName,
               { model: "sonnet", apiKey },
-              milestoneName ? { milestoneName } : undefined,
+              { milestoneName, instruction: message.content },
             )
 
             results.push({

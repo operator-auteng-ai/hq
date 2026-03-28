@@ -47,6 +47,7 @@ export interface SkillContext {
   milestoneName?: string
   componentName?: string
   phaseName?: string
+  instruction?: string
 }
 
 export interface SkillResult {
@@ -225,6 +226,10 @@ function buildSkillPrompt(
   parts.push(
     "\nRead the project's docs/ directory for existing context before writing.\nWrite your output files directly — do not explain what you would write.",
   )
+
+  if (context?.instruction) {
+    parts.push(`\n\nInstruction for this run:\n${context.instruction}`)
+  }
 
   return parts.join("")
 }

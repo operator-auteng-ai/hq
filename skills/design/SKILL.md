@@ -131,6 +131,16 @@ docs/detailed_design/
 
 The directory name becomes the **phase name** in the delivery tracker. Number-prefix directories to indicate build order.
 
+## Re-run / Update Mode
+
+If the design document already exists at the target path, this is a **targeted update**, not a fresh creation.
+
+1. Read the existing document first
+2. Check the "Instruction for this run" section in your prompt — it explains what to change
+3. Apply **only** the requested change, preserving everything else (interface, data model, tasks, exit criteria)
+4. Do not rewrite sections that aren't affected by the instruction
+5. If the architecture changed, verify the design is still consistent with the updated arch doc
+
 ## After Writing
 
 Present the completed design document. Flag:

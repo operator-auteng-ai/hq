@@ -69,6 +69,16 @@ Write `docs/VISION.md` to the workspace. Use this exact structure:
 
 If the user's prompt is vague or broad, **make the hypothesis specific anyway**. Pick the strongest bet you can extract from what they gave you. The user will refine it in review — a specific-but-wrong hypothesis is more useful than a vague-but-safe one.
 
+## Re-run / Update Mode
+
+If `docs/VISION.md` already exists, this is a **targeted update**, not a fresh creation.
+
+1. Read the existing `docs/VISION.md` first
+2. Check the "Instruction for this run" section in your prompt — it explains what to change
+3. Apply **only** the requested change, preserving everything else
+4. Do not rewrite sections that aren't affected by the instruction
+5. If no instruction is provided, review and refine the existing document rather than replacing it
+
 ## After Writing
 
 Present the completed VISION.md. Call out any assumptions you made and flag sections where you had to guess. The user should review and refine before moving to the milestones skill.

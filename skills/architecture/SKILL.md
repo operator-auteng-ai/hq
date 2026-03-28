@@ -35,6 +35,7 @@ Read any that exist. They provide essential context for architectural decisions 
 **Check for an existing ARCH.md** at the target path:
 - If one exists, you're likely doing an incremental update — confirm with the user
 - If none exists, this is a greenfield architecture
+- If an "Instruction for this run" section is present in your prompt, this is a **targeted re-run** — read the existing doc, apply only the requested change, and preserve everything else
 
 ### 2. Determine Scope
 

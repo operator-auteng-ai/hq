@@ -76,6 +76,16 @@ Write `docs/MILESTONES.md` to the workspace. Use this exact structure:
 - Post-MVP milestones are things that strengthen the product after the hypothesis is validated.
 - These are less defined and that's fine. They exist to show the roadmap direction, not to be planned in detail.
 
+## Re-run / Update Mode
+
+If `docs/MILESTONES.md` already exists, this is a **targeted update**, not a fresh creation.
+
+1. Read the existing `docs/MILESTONES.md` first
+2. Check the "Instruction for this run" section in your prompt — it explains what to change
+3. Apply **only** the requested change, preserving everything else (milestone names, descriptions, MVP boundary)
+4. Do not reorder or rewrite milestones that aren't affected by the instruction
+5. If the vision changed, verify the MVP boundary still aligns with the updated hypothesis
+
 ## After Writing
 
 Present the completed MILESTONES.md. Call out:
