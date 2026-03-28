@@ -253,14 +253,30 @@ export function OrchestratorChat({ projectId, systemMessages = [] }: Orchestrato
       })
 
       if (res.ok && confirm) {
-        // Update the message to show action was executed
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingActions.messageId
-              ? { ...m, actionExecuted: 1 }
-              : m,
-          ),
-        )
+        const data = await res.json()
+        const errors = (data.results as Array<{ action: string; result: { error?: string } }>)
+          ?.filter((r) => r.result?.error)
+          ?.map((r) => `${r.action}: ${r.result.error}`)
+
+        if (errors && errors.length > 0) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `err-${Date.now()}`,
+              role: "assistant",
+              content: `Action failed: ${errors.join(", ")}`,
+              createdAt: new Date().toISOString(),
+            },
+          ])
+        } else {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === pendingActions.messageId
+                ? { ...m, actionExecuted: 1 }
+                : m,
+            ),
+          )
+        }
       }
     } catch {
       // ignore confirm errors

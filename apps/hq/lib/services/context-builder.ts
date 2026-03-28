@@ -127,7 +127,7 @@ You can propose these actions (user must confirm before execution):
 - rejectPhase <phaseId> — reject a phase and reset tasks
 - approveMilestone <milestoneId> — approve a completed milestone
 - startPhase <phaseId> — start all pending tasks in a phase
-- runSkill <skillName> [milestoneName] — re-run a planning skill
+- runSkill <skillName> [milestoneName] — re-run a planning skill (valid skills: vision, milestones, architecture, design)
 
 When proposing an action, output it on a line by itself in this format:
 ACTION: <actionName> <entityId>
