@@ -274,6 +274,46 @@ app/design-system/
 3. The design system pages are **dev-only** — excluded from production builds
 4. New components are added to `entries.ts` first, then implemented
 
+## UI Patterns
+
+### Status Filtering
+
+List pages that filter by entity status (projects, agents, deploys, etc.) **must** use the `Tabs` component from `@/components/ui/tabs` — not ad-hoc Button groups.
+
+**Pattern:**
+
+```tsx
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+const FILTERS = [
+  { value: "running", label: "Running" },
+  { value: "completed", label: "Completed" },
+  { value: "all", label: "All" },
+] as const
+
+// Inside the component:
+<Tabs value={filter} onValueChange={(v) => setFilter(v as FilterValue)}>
+  <TabsList>
+    {FILTERS.map((f) => (
+      <TabsTrigger key={f.value} value={f.value}>
+        {f.label}
+        {counts[f.value] > 0 && (
+          <span className="ml-1.5 rounded-full bg-muted-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums">
+            {counts[f.value]}
+          </span>
+        )}
+      </TabsTrigger>
+    ))}
+  </TabsList>
+</Tabs>
+```
+
+**Rules:**
+- Each tab trigger shows a count badge (only when count > 0)
+- Count badge uses `bg-muted-foreground/15` with `text-[10px] font-semibold tabular-nums`
+- Filter state is managed via `useState` + `useMemo` — do not re-fetch from the API per filter
+- Empty state should differentiate "no items at all" from "no items matching filter"
+
 ## Cross-References
 
 - Component boundaries and data flow → [ARCH.md](./ARCH.md)

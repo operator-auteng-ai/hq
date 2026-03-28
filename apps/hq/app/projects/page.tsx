@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/status-badge"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlusIcon, FolderOpenIcon } from "lucide-react"
 
 interface Project {
@@ -19,24 +20,46 @@ interface Project {
   updatedAt: string
 }
 
-const STATUS_FILTERS = ["all", "draft", "planning", "building", "deployed", "archived"] as const
+const STATUS_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "draft", label: "Draft" },
+  { value: "planning", label: "Planning" },
+  { value: "building", label: "Building" },
+  { value: "deployed", label: "Deployed" },
+  { value: "archived", label: "Archived" },
+] as const
+
+type FilterValue = (typeof STATUS_FILTERS)[number]["value"]
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([])
+  const [allProjects, setAllProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<string>("all")
+  const [filter, setFilter] = useState<FilterValue>("all")
 
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const params = filter !== "all" ? `?status=${filter}` : ""
-      const res = await fetch(`/api/projects${params}`)
+      const res = await fetch("/api/projects")
       const data = await res.json()
-      setProjects(data)
+      setAllProjects(data)
       setLoading(false)
     }
     load()
-  }, [filter])
+  }, [])
+
+  const counts = useMemo(() => {
+    const c: Record<FilterValue, number> = { all: 0, draft: 0, planning: 0, building: 0, deployed: 0, archived: 0 }
+    for (const p of allProjects) {
+      c.all++
+      if (p.status in c) c[p.status as FilterValue]++
+    }
+    return c
+  }, [allProjects])
+
+  const projects = useMemo(
+    () => filter === "all" ? allProjects : allProjects.filter((p) => p.status === filter),
+    [allProjects, filter],
+  )
 
   return (
     <div className="space-y-6">
@@ -55,19 +78,20 @@ export default function ProjectsPage() {
         </Button>
       </div>
 
-      <div className="flex gap-1">
-        {STATUS_FILTERS.map((s) => (
-          <Button
-            key={s}
-            variant={filter === s ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setFilter(s)}
-            className="capitalize"
-          >
-            {s}
-          </Button>
-        ))}
-      </div>
+      <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterValue)}>
+        <TabsList>
+          {STATUS_FILTERS.map((f) => (
+            <TabsTrigger key={f.value} value={f.value}>
+              {f.label}
+              {counts[f.value] > 0 && (
+                <span className="ml-1.5 rounded-full bg-muted-foreground/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums">
+                  {counts[f.value]}
+                </span>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -84,21 +108,27 @@ export default function ProjectsPage() {
           ))}
         </div>
       ) : projects.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FolderOpenIcon className="mb-4 h-12 w-12 text-muted-foreground/50" />
-            <h3 className="text-lg font-medium">No projects yet</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Create your first project to get started.
-            </p>
-            <Button asChild className="mt-4">
-              <Link href="/projects/new">
-                <PlusIcon className="mr-2 h-4 w-4" />
-                New Project
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        allProjects.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <FolderOpenIcon className="mb-4 h-12 w-12 text-muted-foreground/50" />
+              <h3 className="text-lg font-medium">No projects yet</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Create your first project to get started.
+              </p>
+              <Button asChild className="mt-4">
+                <Link href="/projects/new">
+                  <PlusIcon className="mr-2 h-4 w-4" />
+                  New Project
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground">
+            No {filter} projects.
+          </div>
+        )
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
