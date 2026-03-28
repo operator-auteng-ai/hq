@@ -455,35 +455,124 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 
 ---
 
-### Phase 9 — Skill Quality & Error Recovery
+### Phase 9 — Project-Scoped Navigation
+
+**Detailed design**: [docs/v0/ph9/INFORMATION_ARCHITECTURE.md](./v0/ph9/INFORMATION_ARCHITECTURE.md)
+
+**From**: Sidebar shows the same 4 top-level links (Dashboard, Projects, Agents, Deploys) regardless of context. Selecting a project doesn't change the nav. Agents page shows all agents globally. No indicator of which project the user is working in.
+**To**: Once a user enters a project, the sidebar transitions to project-scoped navigation. A project header shows which project is active. Agents, deploys, and other views filter to that project. Global nav remains accessible via a back/home action.
+
+| Task | Description |
+|------|-------------|
+| 9.1 | Project context indicator: when viewing a project, sidebar header shows project name + status badge with a back button to return to the global project list |
+| 9.2 | Project-scoped sidebar nav: replace top-level nav items with project-relevant sections (Cockpit, Agents, Deploys, Settings) when inside a project. Each links to `/projects/:id/<section>` |
+| 9.3 | Project-scoped agents view: `/projects/:id/agents` shows agents filtered to that project, reusing the existing agent list/detail components |
+| 9.4 | Project-scoped deploys view: `/projects/:id/deploys` shows deploys filtered to that project |
+| 9.5 | Global nav fallback: top-level `/agents` and `/deploys` routes remain but show cross-project views with a project column for context |
+| 9.6 | Update E2E tests for new navigation structure |
+
+**Exit Criteria**: User selects a project → sidebar switches to project-scoped nav with project name visible → Agents/Deploys filter to that project → user can navigate back to global project list. Global routes still work for cross-project views.
+
+**Feedback**: Does the nav feel natural? Is the project context always clear? Can users switch projects without getting lost?
+
+#### User Flow
+
+1. User launches app → lands on **Dashboard** (global view)
+2. User clicks a project in the list → navigates to `/projects/:id` → sidebar transitions to project-scoped nav
+3. User works within the project (cockpit, agents, deploys) — sidebar always shows project context
+4. User clicks back/home in sidebar → returns to global Dashboard → sidebar reverts to global nav
+5. User can also go to global `/agents` or `/deploys` for cross-project views from the global nav
+
+#### Information Architecture by Page
+
+**Global Dashboard (`/`)**
+- Sidebar: Dashboard, Projects, Agents, Deploys, Settings
+- Content: Project list with status badges, quick stats, recent activity
+- Action: Click project → enter project scope
+
+**Global Projects (`/projects`)**
+- Sidebar: Same global nav
+- Content: Full project list with filters (status, search)
+- Action: Click project → enter project scope. "New Project" button → `/projects/new`
+
+**Global Agents (`/agents`)**
+- Sidebar: Same global nav
+- Content: All agents across all projects, with project name column for context
+- Use case: "What's running right now?" across everything
+
+**Global Deploys (`/deploys`)**
+- Sidebar: Same global nav
+- Content: All deploys across all projects, with project name column
+
+**Project Cockpit (`/projects/:id`)**
+- Sidebar: Project header (name + status + back button), then: Cockpit, Agents, Deploys
+- Content: Three-column cockpit (pipeline nav + artifact viewer + chat panel)
+- This is the main working view for a project
+
+**Project Agents (`/projects/:id/agents`)**
+- Sidebar: Same project-scoped nav
+- Content: Agents filtered to this project. Agent cards with status, output streaming, cancel/resume
+- No project name column needed (implicit from context)
+
+**Project Deploys (`/projects/:id/deploys`)**
+- Sidebar: Same project-scoped nav
+- Content: Deploys filtered to this project
+
+**Settings (`/settings`)**
+- Sidebar: Always accessible (global nav and project nav both show it)
+- Content: API key management, app preferences
+
+---
+
+### Phase 10 — Pipeline State Persistence
+
+**From**: Pipeline gate buttons (e.g. "progress to next stage" after vision completes) disappear on page refresh. UI state relies on in-memory component state rather than DB-backed status. Unclear if other transient states have the same problem.
+**To**: All pipeline progress, gate states, and user actions survive page refresh. The UI reconstructs its full state from the database on load.
+
+| Task | Description |
+|------|-------------|
+| 10.1 | Audit pipeline UI state: walk through the full flow (project creation → vision → milestones → architecture → design → tasks) and document every place where UI state is lost on refresh |
+| 10.2 | Persist gate states: ensure skill completion status and "ready to advance" flags are stored in DB (delivery tracker or agent_runs) so the UI can reconstruct gate buttons on reload |
+| 10.3 | Persist active pipeline level: store the user's selected pipeline level per project so refreshing the cockpit returns to the same view |
+| 10.4 | Chat message persistence: verify system messages (pipeline events) and user/assistant messages survive refresh. Fix any gaps |
+| 10.5 | Agent run status reconciliation: on page load, reconcile in-memory agent state with DB — detect agents that were running when the app restarted and mark them appropriately |
+| 10.6 | Smoke test: full pipeline walkthrough with page refreshes at every stage — verify no state loss |
+
+**Exit Criteria**: User can refresh the page at any point during the pipeline and return to the exact same state — correct pipeline level selected, gate buttons visible, chat history intact, agent statuses accurate. No transient-only UI state for pipeline progression.
+
+**Feedback**: Are there edge cases where state reconstruction feels wrong (e.g. stale "running" indicators)? Does the app feel solid on refresh?
+
+---
+
+### Phase 11 — Skill Quality & Error Recovery
 
 **From**: Skills produce first-draft docs, errors require manual intervention
 **To**: Skills produce high-quality decomposition docs, failed tasks and phases recover gracefully
 
 | Task | Description |
 |------|-------------|
-| 9.1 | Skill prompt tuning: run the pipeline on 3-5 different project prompts, evaluate output quality, iterate on skill prompts |
-| 9.2 | Phase retry: failed tasks can be retried individually, failed phases roll back and re-execute |
-| 9.3 | Phase review agent: implement the automated review that checks exit criteria, runs tests, reviews code changes |
-| 9.4 | Fix-up loop: review failures create fix-up tasks, phase re-enters active, re-reviews on completion |
-| 9.5 | CLAUDE.md generation update: workspace CLAUDE.md reflects skill-based workflow, doc read order, milestone context |
+| 11.1 | Skill prompt tuning: run the pipeline on 3-5 different project prompts, evaluate output quality, iterate on skill prompts |
+| 11.2 | Phase retry: failed tasks can be retried individually, failed phases roll back and re-execute |
+| 11.3 | Phase review agent: implement the automated review that checks exit criteria, runs tests, reviews code changes |
+| 11.4 | Fix-up loop: review failures create fix-up tasks, phase re-enters active, re-reviews on completion |
+| 11.5 | CLAUDE.md generation update: workspace CLAUDE.md reflects skill-based workflow, doc read order, milestone context |
 
 **Exit Criteria**: Pipeline produces usable decomposition for mid-complexity SaaS prompts. Failed tasks can be retried. Phase review catches common issues and generates fix-up tasks.
 
 ---
 
-### Phase 10 — End-to-End Hardening
+### Phase 12 — End-to-End Hardening
 
 **From**: Pipeline runs but hasn't been stress-tested
 **To**: A mid-complexity SaaS goes from prompt to locally-running application
 
 | Task | Description |
 |------|-------------|
-| 10.1 | End-to-end test: "freelancer invoicing with Stripe payments" → full decomposition → agent execution → working local app |
-| 10.2 | E2E Playwright tests: full pipeline from project creation through task completion |
-| 10.3 | Architecture roll-up integration: milestone completion triggers canonical doc roll-up |
-| 10.4 | Release stamping: milestone completion creates release records with semver |
-| 10.5 | Full v0 doc reconciliation: update ARCH.md, TAXONOMY.md, PLAN.md against actual built system |
+| 12.1 | End-to-end test: "freelancer invoicing with Stripe payments" → full decomposition → agent execution → working local app |
+| 12.2 | E2E Playwright tests: full pipeline from project creation through task completion |
+| 12.3 | Architecture roll-up integration: milestone completion triggers canonical doc roll-up |
+| 12.4 | Release stamping: milestone completion creates release records with semver |
+| 12.5 | Full v0 doc reconciliation: update ARCH.md, TAXONOMY.md, PLAN.md against actual built system |
 
 **Exit Criteria**: A mid-complexity SaaS vision goes from prompt to locally-running, tested application in <4 hours without human code intervention. All milestones, phases, and tasks tracked in DB. User can monitor and control the pipeline via dashboard and orchestrator chat.
 
@@ -516,8 +605,10 @@ graph TD
     P3 --> P6["Phase 6: Make It Work"]
     P4 --> P6
     P6 --> P7["Phase 7: Orchestrator Rewrite"]
-    P7 --> P8["Phase 8: Progress Dashboard"]
-    P7 --> P9["Phase 9: Skill Quality & Recovery"]
-    P8 --> P10["Phase 10: E2E Hardening"]
-    P9 --> P10
+    P7 --> P8["Phase 8: Project Cockpit UI"]
+    P8 --> P9["Phase 9: Project-Scoped Nav"]
+    P8 --> P10["Phase 10: Pipeline State Persistence"]
+    P9 --> P11["Phase 11: Skill Quality & Recovery"]
+    P10 --> P11
+    P11 --> P12["Phase 12: E2E Hardening"]
 ```

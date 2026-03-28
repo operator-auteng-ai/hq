@@ -10,7 +10,7 @@ import { OrchestratorChat } from "@/components/orchestrator-chat"
 import { ArtifactViewer, type ProjectDocs } from "@/components/artifact-viewer"
 import { type SystemMessageData } from "@/components/system-message"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ArrowLeftIcon, ArchiveIcon, FolderIcon } from "lucide-react"
+import { ArchiveIcon, FolderIcon } from "lucide-react"
 
 interface Project {
   id: string
@@ -293,9 +293,6 @@ export default function ProjectDetailPage({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/projects")}>
-              <ArrowLeftIcon className="h-4 w-4" />
-            </Button>
             <h1 className="text-base font-semibold truncate">{project.name}</h1>
             <StatusBadge status={project.status} />
             {project.workspacePath && (

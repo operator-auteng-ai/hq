@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getDb, schema } from "@/lib/db"
-import { eq } from "drizzle-orm"
+import { eq, and } from "drizzle-orm"
 import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
 import { getAnthropicApiKey } from "@/lib/services/secrets"
@@ -23,16 +23,41 @@ export async function GET(request: Request) {
     const projectId = url.searchParams.get("projectId")
     const status = url.searchParams.get("status")
 
-    let query = db.select().from(schema.agentRuns)
-
     if (projectId) {
-      query = query.where(eq(schema.agentRuns.projectId, projectId)) as typeof query
-    }
-    if (status) {
-      query = query.where(eq(schema.agentRuns.status, status)) as typeof query
+      const conditions = status
+        ? and(eq(schema.agentRuns.projectId, projectId), eq(schema.agentRuns.status, status))
+        : eq(schema.agentRuns.projectId, projectId)
+      const rows = db.select().from(schema.agentRuns).where(conditions).all()
+      return NextResponse.json(rows)
     }
 
-    const rows = query.all()
+    // Global view: join project name for cross-project context
+    const conditions = status ? eq(schema.agentRuns.status, status) : undefined
+    const rows = db
+      .select({
+        id: schema.agentRuns.id,
+        projectId: schema.agentRuns.projectId,
+        projectName: schema.projects.name,
+        taskId: schema.agentRuns.taskId,
+        phaseLabel: schema.agentRuns.phaseLabel,
+        agentType: schema.agentRuns.agentType,
+        prompt: schema.agentRuns.prompt,
+        status: schema.agentRuns.status,
+        model: schema.agentRuns.model,
+        maxTurns: schema.agentRuns.maxTurns,
+        budgetUsd: schema.agentRuns.budgetUsd,
+        costUsd: schema.agentRuns.costUsd,
+        turnCount: schema.agentRuns.turnCount,
+        sessionId: schema.agentRuns.sessionId,
+        output: schema.agentRuns.output,
+        createdAt: schema.agentRuns.createdAt,
+        completedAt: schema.agentRuns.completedAt,
+      })
+      .from(schema.agentRuns)
+      .leftJoin(schema.projects, eq(schema.agentRuns.projectId, schema.projects.id))
+      .where(conditions)
+      .all()
+
     return NextResponse.json(rows)
   } catch (error) {
     return NextResponse.json(
