@@ -54,7 +54,7 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 |------|-------------|
 | 1.1 | "New Project" UI: prompt input form (dedicated page) |
 | 1.2 | Project CRUD API with Zod validation |
-| 1.3 | Doc Generator: prompt → VISION, ARCH, PLAN, TAXONOMY, CODING-STANDARDS (via Claude API) |
+| 1.3 | Doc Generator: prompt → VISION, ARCH, PLAN, TAXONOMY, CODING_STANDARDS (via Claude API) |
 | 1.4 | Local workspace creation (`git init`, CLAUDE.md generation) |
 | 1.5 | Project list view on dashboard with status badges |
 | 1.6 | Project detail view showing generated docs, status, and phase breakdown |
@@ -93,10 +93,10 @@ See [ARCH.md](./ARCH.md) — a fully functioning Electron + Next.js desktop app 
 |--------|-------------|
 | **What** | Transform user prompt into 5 workflow docs for the new project |
 | **Input** | Project prompt + name |
-| **Output** | VISION.md, ARCH.md, PLAN.md, TAXONOMY.md, CODING-STANDARDS.md |
+| **Output** | VISION.md, ARCH.md, PLAN.md, TAXONOMY.md, CODING_STANDARDS.md |
 | **Implementation** | `lib/services/doc-generator.ts` — calls Claude API (`@anthropic-ai/sdk`) with structured prompts |
 | **Model** | User-selected (default: sonnet). Each doc generated as a separate API call for quality |
-| **Prompt strategy** | System prompt defines the doc format/structure (derived from our own docs as templates). User prompt provides the product idea. Chain: VISION first → feed into ARCH → feed into PLAN → TAXONOMY and CODING-STANDARDS in parallel |
+| **Prompt strategy** | System prompt defines the doc format/structure (derived from our own docs as templates). User prompt provides the product idea. Chain: VISION first → feed into ARCH → feed into PLAN → TAXONOMY and CODING_STANDARDS in parallel |
 | **Error handling** | Retry once on failure. Store partial results. User can regenerate individual docs |
 | **Status flow** | Project `draft` → `planning` (during generation) → `planning` (complete, ready for build) |
 

@@ -5,7 +5,7 @@ Desktop command center for launching, orchestrating, and managing businesses bui
 ## What It Does
 
 1. **Prompt** — Describe what you want to build
-2. **Plan** — HQ generates workflow docs (VISION, ARCH, PLAN, TAXONOMY, CODING-STANDARDS)
+2. **Plan** — HQ generates workflow docs (VISION, ARCH, PLAN, TAXONOMY, CODING_STANDARDS)
 3. **Build** — Dev agents (Claude Code, Codex CLI) implement each phase autonomously
 4. **Deploy** — Orchestrate cloud deployment (Vercel, AWS)
 5. **Monitor** — Track KPIs, logs, errors, and business metrics from the dashboard
@@ -98,7 +98,7 @@ All project documentation lives in `docs/` following the [AutEng workflow](docs/
 - [VISION.md](docs/VISION.md) — Product scope and success metrics
 - [ARCH.md](docs/ARCH.md) — System architecture and database schema
 - [PLAN.md](docs/PLAN.md) — Phased implementation plan
-- [CODING-STANDARDS.md](docs/CODING-STANDARDS.md) — Code style and quality rules
+- [CODING_STANDARDS.md](docs/CODING_STANDARDS.md) — Code style and quality rules
 - [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) — Token architecture and component registry
 - [TAXONOMY.md](docs/TAXONOMY.md) — Shared vocabulary and naming conventions
 

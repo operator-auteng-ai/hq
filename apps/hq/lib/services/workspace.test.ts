@@ -70,7 +70,7 @@ describe("createWorkspace", () => {
 
     expect(claudeMd).toContain("Claude MD Test")
     expect(claudeMd).toContain("VISION.md")
-    expect(claudeMd).toContain("CODING-STANDARDS.md")
+    expect(claudeMd).toContain("CODING_STANDARDS.md")
     expect(claudeMd).toContain("ARCH.md")
   })
 

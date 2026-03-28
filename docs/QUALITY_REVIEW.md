@@ -1,7 +1,7 @@
 # Quality Review — AutEng HQ v0 (Post-Phase 7)
 
 Review date: 2026-03-22
-Scope: All code in `apps/hq/` audited against CODING-STANDARDS.md and SOFTWARE_PHILOSOPHY.md
+Scope: All code in `apps/hq/` audited against CODING_STANDARDS.md and SOFTWARE_PHILOSOPHY.md
 
 ---
 

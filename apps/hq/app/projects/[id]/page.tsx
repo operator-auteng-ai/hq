@@ -277,7 +277,7 @@ export default function ProjectDetailPage({
               )}
               {docs.codingStandards && (
                 <div>
-                  <h3 className="text-base font-medium mb-2">CODING-STANDARDS.md</h3>
+                  <h3 className="text-base font-medium mb-2">CODING_STANDARDS.md</h3>
                   <pre className="whitespace-pre-wrap text-sm leading-relaxed">
                     {docs.codingStandards}
                   </pre>

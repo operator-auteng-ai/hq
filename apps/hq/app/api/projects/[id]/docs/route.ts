@@ -12,7 +12,7 @@ const DOC_FILES = [
   { key: "arch", filename: "ARCH.md" },
   { key: "plan", filename: "PLAN.md" },
   { key: "taxonomy", filename: "TAXONOMY.md" },
-  { key: "codingStandards", filename: "CODING-STANDARDS.md" },
+  { key: "codingStandards", filename: "CODING_STANDARDS.md" },
 ] as const
 
 export async function GET(_request: NextRequest, { params }: RouteParams) {

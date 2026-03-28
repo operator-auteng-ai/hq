@@ -28,7 +28,7 @@ ${projectName} — an AI-orchestrated project managed by AutEng HQ.
 
 Read the docs in this order for full context:
 1. \`docs/VISION.md\` — Product scope, users, success metrics
-2. \`docs/CODING-STANDARDS.md\` — Code style and quality rules
+2. \`docs/CODING_STANDARDS.md\` — Code style and quality rules
 3. \`docs/TAXONOMY.md\` — Entity names, statuses, naming conventions
 4. \`docs/ARCH.md\` — System design, schema, component boundaries
 5. \`docs/PLAN.md\` — Phased implementation plan

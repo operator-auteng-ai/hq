@@ -643,4 +643,4 @@ This is the key integration between agents and background processes. Agents can 
 | [TAXONOMY.md](./TAXONOMY.md) | Entity names, status enums, naming conventions — ARCH schema uses these |
 | [WORKFLOW.md](./WORKFLOW.md) | Session protocol, feedback stages — ARCH components implement this |
 | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) | Token architecture, component registry — consumed by Renderer |
-| [CODING-STANDARDS.md](./CODING-STANDARDS.md) | Quality rules — applied during implementation |
+| [CODING_STANDARDS.md](./CODING_STANDARDS.md) | Quality rules — applied during implementation |

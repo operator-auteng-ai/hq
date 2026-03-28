@@ -278,6 +278,6 @@ app/design-system/
 
 - Component boundaries and data flow → [ARCH.md](./ARCH.md)
 - Entity statuses mapped to status tokens → [TAXONOMY.md](./TAXONOMY.md)
-- Code style for components → [CODING-STANDARDS.md](./CODING-STANDARDS.md)
+- Code style for components → [CODING_STANDARDS.md](./CODING_STANDARDS.md)
 - shadcn base configuration → `components.json` (radix-maia style, taupe base)
 - Token definitions → `app/globals.css`

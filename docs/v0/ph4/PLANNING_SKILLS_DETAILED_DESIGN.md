@@ -2,7 +2,7 @@
 
 ## Problem
 
-HQ's doc generator (`lib/services/doc-generator.ts`) is a monolithic pipeline that generates 5 flat docs (VISION, ARCH, PLAN, TAXONOMY, CODING-STANDARDS) from a single prompt via chained Claude API calls. This approach:
+HQ's doc generator (`lib/services/doc-generator.ts`) is a monolithic pipeline that generates 5 flat docs (VISION, ARCH, PLAN, TAXONOMY, CODING_STANDARDS) from a single prompt via chained Claude API calls. This approach:
 
 - Produces generic, unfocused docs — no hypothesis/success metric extraction, no milestone decomposition, no per-component design
 - Cannot produce the structured artifacts needed by the delivery tracker (milestones, phases with exit criteria, tasks linked to design docs)
@@ -548,7 +548,7 @@ In production, skills must be bundled with the Electron app:
 ```
 POST /api/projects → create project record
 POST /api/projects/:id/generate → monolithic doc generator
-  → Claude API chain: VISION → ARCH → PLAN → TAXONOMY + CODING-STANDARDS
+  → Claude API chain: VISION → ARCH → PLAN → TAXONOMY + CODING_STANDARDS
   → Write all docs to workspace
   → git commit
 ```

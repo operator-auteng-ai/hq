@@ -4,7 +4,7 @@
 
 ### doc-setup — Established workflow documentation
 - **Actor**: user + orchestrator
-- **Action**: Created all foundational docs (VISION, ARCH, PLAN, TAXONOMY, CODING-STANDARDS, WORKFLOW)
+- **Action**: Created all foundational docs (VISION, ARCH, PLAN, TAXONOMY, CODING_STANDARDS, WORKFLOW)
 - **Reason**: Project bootstrap — following AutEng workflow
 - **Affected**: AutEng HQ / v0 / Pre-Phase
 
@@ -66,8 +66,8 @@
 - **Reason**: Phase 2 was marked complete without running the app in a browser. 92 unit tests and typecheck passed but did not cover runtime module resolution or real user interaction.
 - **Affected**: AutEng HQ / v0 / Phase 1 (generate endpoint) + Phase 2 (lucide-react dep)
 
-### doc-update — Added Smoke Test Protocol to WORKFLOW.md and CODING-STANDARDS.md
+### doc-update — Added Smoke Test Protocol to WORKFLOW.md and CODING_STANDARDS.md
 - **Actor**: orchestrator
-- **Action**: Added "Smoke Test Protocol" section to WORKFLOW.md (6-step process: start dev server, load pages, click buttons, check console, test error paths, curl APIs). Added smoke test requirement to Phase Feedback checklist. Updated CODING-STANDARDS.md Definition of Done to require dev server compilation, browser rendering, and error path verification. Updated Testing section to require smoke tests and error path coverage.
+- **Action**: Added "Smoke Test Protocol" section to WORKFLOW.md (6-step process: start dev server, load pages, click buttons, check console, test error paths, curl APIs). Added smoke test requirement to Phase Feedback checklist. Updated CODING_STANDARDS.md Definition of Done to require dev server compilation, browser rendering, and error path verification. Updated Testing section to require smoke tests and error path coverage.
 - **Reason**: The Phase Feedback checklist lacked a "does the app actually work" verification step. Two bugs shipped past 92 passing tests and clean typecheck because neither covers browser-level functionality.
-- **Affected**: AutEng HQ / docs (WORKFLOW.md, CODING-STANDARDS.md)
+- **Affected**: AutEng HQ / docs (WORKFLOW.md, CODING_STANDARDS.md)

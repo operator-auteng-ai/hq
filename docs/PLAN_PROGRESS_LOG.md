@@ -3,7 +3,7 @@
 ## 2026-03-07
 
 ### v0 / Pre-Phase / Doc Setup
-- **Action**: Created foundational workflow documents: VISION.md, ARCH.md, PLAN.md, TAXONOMY.md, CODING-STANDARDS.md
+- **Action**: Created foundational workflow documents: VISION.md, ARCH.md, PLAN.md, TAXONOMY.md, CODING_STANDARDS.md
 - **Outcome**: All 5 core docs in place
 - **Discovery**: None
 
@@ -94,7 +94,7 @@
   - ✅ Build produces working .dmg (arm64 + x64)
   - ✅ App launches from built .dmg and serves Next.js
   - ✅ SQLite DB created with schema (5 tables matching ARCH.md)
-- **Feedback**: CODING-STANDARDS.md updated to reflect monorepo structure. PLAN.md updated to reflect shadcn scaffold starting point. Package name changed from `AutEng HQ` to `auteng-hq` (npm naming rules).
+- **Feedback**: CODING_STANDARDS.md updated to reflect monorepo structure. PLAN.md updated to reflect shadcn scaffold starting point. Package name changed from `AutEng HQ` to `auteng-hq` (npm naming rules).
 
 ## 2026-03-15
 
@@ -134,7 +134,7 @@
 - **Discovery**: None
 
 ### v0 / Phase 1 / Task 1.3 — Doc Generator
-- **Action**: Created `lib/services/doc-generator.ts`. Uses `@anthropic-ai/sdk` (Anthropic API SDK) to generate 5 workflow docs. Chain: VISION → ARCH (with VISION context) → PLAN (with VISION+ARCH context) → TAXONOMY + CODING-STANDARDS in parallel (with all prior context). Each doc has a tailored system prompt defining structure and sections.
+- **Action**: Created `lib/services/doc-generator.ts`. Uses `@anthropic-ai/sdk` (Anthropic API SDK) to generate 5 workflow docs. Chain: VISION → ARCH (with VISION context) → PLAN (with VISION+ARCH context) → TAXONOMY + CODING_STANDARDS in parallel (with all prior context). Each doc has a tailored system prompt defining structure and sections.
 - **Outcome**: Generates complete, project-specific workflow documentation from a single prompt.
 - **Discovery**: Doc generation uses Anthropic API SDK (`@anthropic-ai/sdk`) directly — not the Agent SDK (`@anthropic-ai/claude-agent-sdk`). The Agent SDK is for Phase 2 agent execution. These are distinct dependencies.
 

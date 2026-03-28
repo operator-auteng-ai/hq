@@ -27,7 +27,7 @@ Create high-level architecture documents that communicate system design through 
 - `VISION.md` — product scope, goals, constraints
 - `OVERVIEW.md`, `REQUIREMENTS.md`, `PRD.md`, `SPEC.md` — functional/non-functional requirements
 - `PLAN.md` — implementation phases
-- `CODING-STANDARDS.md` — tech conventions
+- `CODING_STANDARDS.md` — tech conventions
 - Any existing `ARCH.md` — are we updating or creating fresh?
 
 Read any that exist. They provide essential context for architectural decisions and should be referenced in the ARCH doc where relevant.

@@ -82,10 +82,10 @@ The project follows a doc-driven methodology. Core docs in `docs/`:
 - **ARCH.md** — System design, schema, component boundaries
 - **PLAN.md** — Phased implementation with exit criteria
 - **TAXONOMY.md** — Canonical names, statuses, enums, naming conventions
-- **CODING-STANDARDS.md** — Code style, security, testing rules
+- **CODING_STANDARDS.md** — Code style, security, testing rules
 - **DESIGN_SYSTEM.md** — Token architecture, component registry
 
-**Read order for context**: WORKFLOW → CODING-STANDARDS → DESIGN_SYSTEM → TAXONOMY → ARCH → PLAN → VISION → logs
+**Read order for context**: WORKFLOW → CODING_STANDARDS → DESIGN_SYSTEM → TAXONOMY → ARCH → PLAN → VISION → logs
 
 Two append-only logs: `PLAN_PROGRESS_LOG.md` (task completions, discoveries) and `WORKFLOW_AUDIT.md` (orchestrator actions, agent spawns, deploys).
 

@@ -26,7 +26,7 @@ This hierarchy applies to building AutEng HQ itself **and** to every project HQ 
 | ARCH.md | System diagrams, schema, component boundaries, data flow | Implementation code, execution order, product decisions |
 | PLAN.md | Current state, future state, phased transition, exit criteria | Architecture details (references ARCH), progress |
 | TAXONOMY.md | Canonical names, enums, statuses, naming conventions | Definitions that belong in ARCH or VISION |
-| CODING-STANDARDS.md | Quality bars, security rules, definition of done | Architecture, product scope, design tokens |
+| CODING_STANDARDS.md | Quality bars, security rules, definition of done | Architecture, product scope, design tokens |
 | DESIGN_SYSTEM.md | Tokens, color/spacing/typography/z-index scales, component registry, atomic levels, design system route | Component implementation, product scope |
 | WORKFLOW.md | Session protocol, lifecycle, feedback process | Content of other documents |
 | WORKFLOW_AUDIT.md | Append-only log of orchestrator actions (decisions, agent spawns, deploys, feedback runs) | Plan progress (that's PLAN_PROGRESS_LOG) |
@@ -42,7 +42,7 @@ project/
 │   ├── ARCH.md
 │   ├── PLAN.md
 │   ├── TAXONOMY.md
-│   ├── CODING-STANDARDS.md
+│   ├── CODING_STANDARDS.md
 │   ├── DESIGN_SYSTEM.md
 │   ├── WORKFLOW.md
 │   ├── WORKFLOW_AUDIT.md       # Orchestrator action log
@@ -65,7 +65,7 @@ Version docs describe **diffs from the parent version**, not full rewrites. v1_A
 When starting a session (human or agent), read documents in this order:
 
 1. **WORKFLOW.md** — How to work
-2. **CODING-STANDARDS.md** — Quality rules
+2. **CODING_STANDARDS.md** — Quality rules
 3. **DESIGN_SYSTEM.md** — Tokens, components, visual rules
 4. **TAXONOMY.md** — Shared vocabulary
 5. **ARCH.md** — System design
@@ -84,7 +84,7 @@ The agent then:
 1. Finds Phase 2 scope in PLAN.md
 2. References ARCH.md for design
 3. Uses TAXONOMY.md for naming
-4. Applies CODING-STANDARDS.md quality rules
+4. Applies CODING_STANDARDS.md quality rules
 5. Checks PLAN_PROGRESS_LOG.md for context on prior work
 6. Implements the task
 7. Smoke-tests the running app (see Smoke Test Protocol below)
@@ -176,7 +176,7 @@ Feedback is the mechanism that keeps documentation accurate as reality diverges 
    - Architecture change → update ARCH.md
    - New terminology → update TAXONOMY.md
    - Scope change → update VISION.md
-   - Quality rule learned → update CODING-STANDARDS.md
+   - Quality rule learned → update CODING_STANDARDS.md
    - Plan deviation → update PLAN.md (remaining phases)
 4. Apply updates to the owning documents
 5. Log the feedback itself to PLAN_PROGRESS_LOG.md
@@ -204,7 +204,7 @@ Feedback is the mechanism that keeps documentation accurate as reality diverges 
 - [ ] ARCH.md matches built system exactly
 - [ ] PLAN.md phases all marked complete or explicitly deferred
 - [ ] TAXONOMY.md reflects all terms actually used in code
-- [ ] CODING-STANDARDS.md updated with any new conventions adopted
+- [ ] CODING_STANDARDS.md updated with any new conventions adopted
 - [ ] VISION.md success metrics reviewed against actuals
 - [ ] Next version docs seeded (if applicable)
 
