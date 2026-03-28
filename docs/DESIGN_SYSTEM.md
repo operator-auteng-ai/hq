@@ -174,6 +174,23 @@ Never use arbitrary z-index values. If a new layer is needed, add it here first.
 
 Prefer `transition-colors` and `transition-opacity` over `transition-all` to avoid layout thrash.
 
+## Building UI — shadcn First
+
+Before writing custom components, **always check the shadcn registry** for existing components and blocks that solve the problem. Use the shadcn MCP tools:
+
+1. **`search_items_in_registries`** — search for components by name or purpose (e.g. "data table", "calendar", "sidebar")
+2. **`view_items_in_registries`** — inspect a component's source and dependencies
+3. **`get_item_examples_from_registries`** — find usage examples and demos
+4. **`list_items_in_registries`** — browse all available components
+5. **`get_add_command_for_items`** — get the CLI command to install a component
+
+**Rules:**
+- Search the `@shadcn` registry before building any new UI primitive or layout block
+- If a shadcn component or block exists that fits the need, install and use it — do not reimplement
+- Adapt shadcn components to our token system (they already use the same CSS custom properties)
+- After adding new components, run `get_audit_checklist` to verify everything is wired up correctly
+- Custom components are only justified when no shadcn equivalent exists or when the component carries domain-specific business logic
+
 ## Component Registry
 
 All React components live in a single registry. Three levels following atomic design:
