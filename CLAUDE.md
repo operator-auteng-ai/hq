@@ -77,17 +77,30 @@ cd apps/hq && npx drizzle-kit generate
 
 ## AutEng Workflow (Document-Driven Development)
 
-The project follows a doc-driven methodology. Core docs in `docs/`:
-- **WORKFLOW.md** — Session protocol, document ownership, feedback process
-- **ARCH.md** — System design, schema, component boundaries
-- **PLAN.md** — Phased implementation with exit criteria
-- **TAXONOMY.md** — Canonical names, statuses, enums, naming conventions
-- **CODING_STANDARDS.md** — Code style, security, testing rules
-- **DESIGN_SYSTEM.md** — Token architecture, component registry
+The project follows a doc-driven methodology. All docs live in `docs/`.
 
-**Read order for context**: WORKFLOW → CODING_STANDARDS → DESIGN_SYSTEM → TAXONOMY → ARCH → PLAN → VISION → logs
+**General context**: VISION → TAXONOMY → ARCH → PLAN → PLAN_PROGRESS_LOG
+**What to do next**: WORKFLOW
+**When implementing**: CODING_STANDARDS, DESIGN_SYSTEM
 
-Two append-only logs: `PLAN_PROGRESS_LOG.md` (task completions, discoveries) and `WORKFLOW_AUDIT.md` (orchestrator actions, agent spawns, deploys).
+### Docs Index
+
+| Document | Description |
+|----------|-------------|
+| [WORKFLOW.md](docs/WORKFLOW.md) | Session protocol, document ownership, feedback process |
+| [ARCH.md](docs/ARCH.md) | System design, schema, component boundaries |
+| [PLAN.md](docs/PLAN.md) | Phased implementation roadmap with exit criteria |
+| [TAXONOMY.md](docs/TAXONOMY.md) | Canonical names, statuses, enums, naming conventions |
+| [CODING_STANDARDS.md](docs/CODING_STANDARDS.md) | Code style, security, testing rules, definition of done |
+| [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) | Token architecture, component registry, UI conventions |
+| [VISION.md](docs/VISION.md) | Product vision — what AutEng HQ is and why it exists |
+| [SOFTWARE_PHILOSOPHY.md](docs/SOFTWARE_PHILOSOPHY.md) | Core engineering principles governing how we build |
+| [MANUAL_TEST_PLAN.md](docs/MANUAL_TEST_PLAN.md) | Manual test checklist for critical flows before release |
+| [QUALITY_REVIEW.md](docs/QUALITY_REVIEW.md) | Post-phase code audit against standards and philosophy |
+| [PLAN_PROGRESS_LOG.md](docs/PLAN_PROGRESS_LOG.md) | Append-only log of task completions and discoveries |
+| [WORKFLOW_AUDIT.md](docs/WORKFLOW_AUDIT.md) | Append-only log of orchestrator actions, agent spawns, deploys |
+
+Detailed design docs for each phase live in `docs/v0/ph<N>/`.
 
 ## Code Conventions
 
