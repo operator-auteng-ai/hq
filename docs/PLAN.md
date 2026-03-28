@@ -2,7 +2,7 @@
 
 ## Current State
 
-Phase 8 complete. Full pipeline operational with cockpit UI:
+Phase 9 complete. Full pipeline operational with project-scoped navigation:
 - Phase 0–2: Skeleton, project creation, agent execution, process management
 - Phase 3: Delivery schema + tracker (milestones, phases, tasks, releases with state machine)
 - Phase 4: Planning skills + engine (4 skills, sequential pipeline with agent completion callbacks)
@@ -10,9 +10,10 @@ Phase 8 complete. Full pipeline operational with cockpit UI:
 - Phase 6: Pipeline wired end-to-end (completion callbacks, full skill chaining, old code removed)
 - Phase 7: Orchestrator rewrite (task-level agent assignment, auto-advance, phase review, arch roll-up, collaboration profiles)
 - Phase 8: Project cockpit UI (three-column layout, pipeline nav, artifact viewer with markdown rendering, system messages in chat, arch/design sub-navigation, milestone tree)
-- 185 unit tests + 23 Playwright E2E, TypeScript clean
+- Phase 9: Project-scoped navigation (context-aware sidebar with global/project modes, project agents/deploys routes, shared AgentList component, cross-project agent name joins)
+- 195 unit tests + 31 Playwright E2E, TypeScript clean
 
-Project creation → immediate redirect to cockpit → planning pipeline streams progress as system messages in always-visible chat panel → user navigates decomposition levels (vision → milestones → architecture → design → tasks) via pipeline nav bar → artifacts render as markdown with sub-navigation for arch deltas and design docs → milestone tree shows delivery status with inline controls.
+Project creation → immediate redirect to cockpit → sidebar switches to project-scoped nav (Cockpit, Agents, Deploys) with project name and status visible → planning pipeline streams progress as system messages in always-visible chat panel → user navigates decomposition levels (vision → milestones → architecture → design → tasks) via pipeline nav bar → artifacts render as markdown with sub-navigation for arch deltas and design docs → milestone tree shows delivery status with inline controls. "← All Projects" returns to global view.
 
 ## Future State
 
@@ -606,7 +607,7 @@ graph TD
     P4 --> P6
     P6 --> P7["Phase 7: Orchestrator Rewrite"]
     P7 --> P8["Phase 8: Project Cockpit UI"]
-    P8 --> P9["Phase 9: Project-Scoped Nav"]
+    P8 --> P9["Phase 9: Project-Scoped Nav ✅"]
     P8 --> P10["Phase 10: Pipeline State Persistence"]
     P9 --> P11["Phase 11: Skill Quality & Recovery"]
     P10 --> P11

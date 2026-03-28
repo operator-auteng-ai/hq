@@ -547,3 +547,54 @@
 - **Action**: Added `-m-6` to project page outer div to negate the `p-6` padding from `<main>` in `layout.tsx`, allowing the cockpit to fill edge-to-edge.
 - **Outcome**: Three-column cockpit fills the available viewport without extra padding gaps.
 - **Discovery**: None.
+
+## 2026-03-28
+
+### v0 / Phase 9 / Pre-Phase — Information Architecture Doc
+- **Action**: Created `docs/v0/ph9/INFORMATION_ARCHITECTURE.md` defining the full IA: site map, two sidebar modes (global vs project-scoped), wireframes for every page, and user flows for project creation, returning to projects, and switching between projects. Updated PLAN.md with Phase 9 and Phase 10 (Pipeline State Persistence), renumbering old Phases 9–10 to 11–12.
+- **Outcome**: Clear design reference for the navigation overhaul.
+- **Discovery**: None.
+
+### v0 / Phase 9 / Task 9.1 — Project context indicator
+- **Action**: Rewrote `components/app-sidebar.tsx` to detect project routes via pathname matching (`/projects/:id/*`). When in project scope, sidebar header shows project name, status badge, and "← All Projects" back link. Uses `useEffect` with fetch to load project info from `/api/projects/:id`.
+- **Outcome**: Project context always visible in sidebar when inside a project.
+- **Discovery**: Setting state synchronously inside `useEffect` triggers the `react-hooks/set-state-in-effect` lint rule. Fixed by using a `loadedForId` guard and moving the null-clear to render phase.
+
+### v0 / Phase 9 / Task 9.2 — Project-scoped sidebar nav
+- **Action**: Sidebar renders Cockpit, Agents, Deploys nav items (linking to `/projects/:id`, `/projects/:id/agents`, `/projects/:id/deploys`) when in project scope. Settings and theme toggle remain in both modes. Removed the back arrow button from the cockpit page header since the sidebar now handles navigation.
+- **Outcome**: Two sidebar modes work correctly with proper active state highlighting.
+- **Discovery**: None.
+
+### v0 / Phase 9 / Task 9.3 — Project-scoped agents view
+- **Action**: Created `/projects/:id/agents` route using a new shared `AgentList` component extracted from the old global agents page. `AgentList` accepts optional `projectId` prop to filter API calls to `/api/agents?projectId=:id`.
+- **Outcome**: Project agents page shows only agents for that project with full filter/cancel/resume/view functionality.
+- **Discovery**: None.
+
+### v0 / Phase 9 / Task 9.4 — Project-scoped deploys view
+- **Action**: Created `/projects/:id/deploys` route with placeholder content (deploys not yet implemented).
+- **Outcome**: Route exists and renders within project-scoped sidebar context.
+- **Discovery**: None.
+
+### v0 / Phase 9 / Task 9.5 — Global nav fallback with project names
+- **Action**: Updated `/api/agents` GET handler to `leftJoin` with `projects` table when no `projectId` filter is set, returning `projectName` alongside agent data. `AgentList` accepts `showProjectName` prop which passes project name to `AgentCard`. Refactored the global agents page to use the shared `AgentList` component with `showProjectName`.
+- **Outcome**: Global `/agents` page shows which project each agent belongs to.
+- **Discovery**: Drizzle's chained `.where()` after `.where()` doesn't type-check properly. Fixed by using `and()` from `drizzle-orm` to compose conditions in a single `.where()` call.
+
+### v0 / Phase 9 / Task 9.6 — E2E tests
+- **Action**: Created `e2e/project-nav.spec.ts` with 8 tests: global sidebar items, project-scoped sidebar switch, project agents page, project deploys page, back link to projects list, sidebar nav links within project, global agents still works, settings from project nav. Fixed 3 existing E2E tests in smoke/error-paths/mocked-flows that broke due to strict mode violations from project name appearing in both sidebar and header.
+- **Outcome**: 31 Playwright E2E tests pass (8 new), 195 unit tests pass, TypeScript clean.
+- **Discovery**: shadcn Sidebar renders as `<div data-sidebar="sidebar">`, not `<aside>`. E2E locators must use `[data-sidebar='sidebar']` to scope assertions to the sidebar.
+
+### v0 / Phase 9 — Complete
+- **Exit Criteria Met**:
+  - ✅ User selects a project → sidebar switches to project-scoped nav with project name visible
+  - ✅ Agents/Deploys filter to that project
+  - ✅ User can navigate back to global project list via "← All Projects"
+  - ✅ Global routes still work for cross-project views (with project name column)
+  - ✅ 31 E2E tests pass, 195 unit tests pass, TypeScript clean
+- **Feedback**:
+  - ARCH.md: No updates needed — navigation is a UI concern, not an architecture change.
+  - TAXONOMY.md: No new domain terms — "cockpit", "global mode", "project-scoped mode" are UI layout terms documented in the IA doc.
+  - PLAN.md: Updated current state and dependency graph. Phases renumbered (old 9→11, old 10→12).
+  - No orphaned TODOs or undocumented decisions.
+  - Design system registry: No new registry entries needed — `AgentList` is a composition of existing `AgentCard` components, not a new atomic/molecule.
