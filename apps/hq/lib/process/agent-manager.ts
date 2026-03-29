@@ -99,16 +99,37 @@ export class AgentManager {
     }
     const model = modelMap[config.model ?? "sonnet"] ?? config.model ?? "claude-sonnet-4-6"
 
-    // Ensure API key is available for the SDK
-    if (config.apiKey) {
-      process.env.ANTHROPIC_API_KEY = config.apiKey
+    // Validate and set API key
+    const apiKey = config.apiKey ?? process.env.ANTHROPIC_API_KEY
+    if (!apiKey || apiKey.trim().length === 0) {
+      this.finishAgent(agentId, "failed", undefined, 0)
+      throw new Error("No API key provided — configure one in Settings")
     }
+    if (!apiKey.startsWith("sk-ant-")) {
+      this.finishAgent(agentId, "failed", undefined, 0)
+      throw new Error("Invalid API key format — key must start with sk-ant-")
+    }
+    process.env.ANTHROPIC_API_KEY = apiKey
 
-    // Spawn via SDK
+    // Spawn with retry on transient failures
+    this.spawnWithRetry(agentId, prompt, project.workspacePath, model, abortController, hqMcp, config)
+  }
+
+  private spawnWithRetry(
+    agentId: string,
+    prompt: string,
+    cwd: string,
+    model: string,
+    abortController: AbortController,
+    hqMcp: ReturnType<typeof createHqMcpServer>,
+    config: AgentConfig,
+    attempt = 1,
+  ): void {
+    const maxRetries = 3
     const agentQuery = query({
       prompt,
       options: {
-        cwd: project.workspacePath,
+        cwd,
         model,
         maxTurns: config.maxTurns ?? 50,
         maxBudgetUsd: config.maxBudgetUsd ?? 5.0,
@@ -121,8 +142,28 @@ export class AgentManager {
 
     // Consume the async generator in the background
     this.consumeStream(agentId, agentQuery).catch((err) => {
-      console.error(`Agent ${agentId} stream error:`, err)
-      this.finishAgent(agentId, "failed", undefined, 0)
+      const message = err instanceof Error ? err.message : String(err)
+      const isTransient =
+        message.includes("Invalid API key") ||
+        message.includes("overloaded") ||
+        message.includes("529") ||
+        message.includes("500") ||
+        message.includes("502") ||
+        message.includes("503") ||
+        message.includes("ECONNRESET") ||
+        message.includes("ETIMEDOUT") ||
+        message.includes("rate limit")
+
+      if (isTransient && attempt < maxRetries && !abortController.signal.aborted) {
+        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 30000) // 1s, 2s, 4s...
+        console.warn(`Agent ${agentId} attempt ${attempt} failed (${message}), retrying in ${delayMs}ms...`)
+        setTimeout(() => {
+          this.spawnWithRetry(agentId, prompt, cwd, model, abortController, hqMcp, config, attempt + 1)
+        }, delayMs)
+      } else {
+        console.error(`Agent ${agentId} failed after ${attempt} attempt(s):`, err)
+        this.finishAgent(agentId, "failed", undefined, 0)
+      }
     })
   }
 

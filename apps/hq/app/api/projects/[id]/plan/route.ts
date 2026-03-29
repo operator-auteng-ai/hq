@@ -37,9 +37,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { getAnthropicApiKey } = await import("@/lib/services/secrets")
   const apiKey = getAnthropicApiKey()
-  if (!apiKey) {
+  if (!apiKey || apiKey.trim().length === 0) {
     return NextResponse.json(
       { error: "No API key configured. Add your Anthropic key in Settings." },
+      { status: 400 },
+    )
+  }
+  if (!apiKey.startsWith("sk-ant-")) {
+    return NextResponse.json(
+      { error: "Invalid API key format. Check your key in Settings." },
       { status: 400 },
     )
   }

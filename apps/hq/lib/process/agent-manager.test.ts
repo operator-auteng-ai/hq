@@ -65,7 +65,7 @@ describe("AgentManager", () => {
 
       // Spawn the agent — the mocked SDK will complete immediately
       await manager.spawn(agentId, project.id, "test prompt", {
-        apiKey: "sk-test",
+        apiKey: "sk-ant-test-key",
       })
 
       // Wait for the async stream to be consumed
@@ -140,7 +140,7 @@ describe("AgentManager", () => {
         .run()
 
       await manager.spawn(agentId, project.id, "test prompt", {
-        apiKey: "sk-test",
+        apiKey: "sk-ant-test-key",
       })
 
       const run = testDb
