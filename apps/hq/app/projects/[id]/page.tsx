@@ -73,8 +73,9 @@ function mapProgressToIcon(status: string): SystemMessageData["icon"] {
   }
 }
 
-function mapProgressToContent(level: string, status: string, detail?: string): string {
+function mapProgressToContent(level: string, status: string, detail?: string, error?: string): string {
   const levelLabel = level.charAt(0).toUpperCase() + level.slice(1)
+  if (status === "failed" && error) return `${levelLabel} failed: ${error}`
   if (detail) return `${levelLabel}: ${detail}`
   switch (status) {
     case "running":
@@ -245,7 +246,7 @@ export default function ProjectDetailPage({
 
                   if (currentEvent === "progress") {
                     addSystemMessage(
-                      mapProgressToContent(data.level, data.status, data.detail),
+                      mapProgressToContent(data.level, data.status, data.detail, data.error),
                       mapProgressToIcon(data.status),
                     )
                     // Refresh docs when a level completes

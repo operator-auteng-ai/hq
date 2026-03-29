@@ -336,6 +336,40 @@ export class PlanningEngine {
     return null
   }
 
+  /**
+   * Extract the error reason from a failed agent run's output.
+   */
+  private getAgentError(agentId: string): string | undefined {
+    const db = getDb()
+    const run = db.select({ output: schema.agentRuns.output })
+      .from(schema.agentRuns)
+      .where(eq(schema.agentRuns.id, agentId))
+      .get()
+    if (!run?.output) return undefined
+    try {
+      const messages = JSON.parse(run.output)
+      // Look for result message with error
+      for (const msg of messages) {
+        if (msg.type === "result" && msg.is_error && msg.result) {
+          return String(msg.result)
+        }
+      }
+      // Look for error text in assistant messages
+      for (const msg of messages) {
+        if (msg.type === "assistant" && msg.message?.content) {
+          for (const block of msg.message.content) {
+            if (block.type === "text" && /error|invalid|fail/i.test(block.text)) {
+              return block.text
+            }
+          }
+        }
+      }
+    } catch {
+      // output not parseable
+    }
+    return undefined
+  }
+
   private async runStep(
     projectId: string,
     step: string,
@@ -356,8 +390,9 @@ export class PlanningEngine {
       }
       const status = await agentManager.waitForAgent(result.agentId)
       if (status !== "completed") {
-        onProgress?.({ level: "vision", status: "failed", error: `Agent ${status}` })
-        return { success: false, error: `Vision agent ${status}`, skillResult: result }
+        const reason = this.getAgentError(result.agentId) ?? `Agent ${status}`
+        onProgress?.({ level: "vision", status: "failed", error: reason })
+        return { success: false, error: `Vision agent ${status}: ${reason}`, skillResult: result }
       }
       this.extractVisionFields(projectId, workspacePath)
       onProgress?.({ level: "vision", status: "completed", agentId: result.agentId })
@@ -374,8 +409,9 @@ export class PlanningEngine {
       }
       const status = await agentManager.waitForAgent(result.agentId)
       if (status !== "completed") {
-        onProgress?.({ level: "milestones", status: "failed" })
-        return { success: false, error: `Milestones agent ${status}`, skillResult: result }
+        const reason = this.getAgentError(result.agentId) ?? `Agent ${status}`
+        onProgress?.({ level: "milestones", status: "failed", error: reason })
+        return { success: false, error: `Milestones agent ${status}: ${reason}`, skillResult: result }
       }
       const msPath = path.join(workspacePath, "docs", "MILESTONES.md")
       if (!fs.existsSync(msPath)) {
@@ -407,7 +443,8 @@ export class PlanningEngine {
       }
       const status = await agentManager.waitForAgent(result.agentId)
       if (status !== "completed") {
-        onProgress?.({ level: "architecture", status: "failed", detail: milestoneName })
+        const reason = this.getAgentError(result.agentId) ?? `Agent ${status}`
+        onProgress?.({ level: "architecture", status: "failed", detail: milestoneName, error: reason })
         return { success: true, nextStep: this.getNextArchStep(projectId, milestoneName), skillResult: result }
       }
       onProgress?.({ level: "architecture", status: "completed", detail: milestoneName })

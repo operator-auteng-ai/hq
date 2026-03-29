@@ -87,8 +87,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       level: string,
       status: string,
       detail?: string,
+      error?: string,
     ): string {
       const label = level.charAt(0).toUpperCase() + level.slice(1)
+      if (status === "failed" && error) return `${label} failed: ${error}`
       if (detail) return `${label}: ${detail}`
       switch (status) {
         case "running":
@@ -112,6 +114,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             event.level,
             event.status,
             event.detail,
+            event.error,
           )
           persistSystemMessage(content, icon)
 
