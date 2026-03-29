@@ -59,10 +59,13 @@ See [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) for the full component registry, toke
 
 ## Error Handling
 
-- Never swallow errors silently
+- Never swallow errors silently — if an operation fails, the user must see why
 - Agent process failures must be captured and stored in `agent_runs.output`
 - Use typed error classes for distinct failure modes
 - User-facing errors must be actionable ("Deploy failed: invalid API key" not "Something went wrong")
+- Pipeline and agent errors must surface the root cause to the user via chat system messages, not just log to the server console
+- Transient failures (API errors, rate limits, network issues) must retry with exponential backoff before reporting failure
+- Validate inputs (API keys, config) before starting expensive operations — fail fast with a clear message
 
 ## Security
 
