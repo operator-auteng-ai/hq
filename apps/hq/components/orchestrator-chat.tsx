@@ -20,6 +20,7 @@ interface ProposedAction {
   action: string
   entityId: string
   description: string
+  prompt?: string
 }
 
 export interface OrchestratorChatProps {
@@ -373,9 +374,19 @@ export function OrchestratorChat({ projectId, systemMessages = [] }: Orchestrato
               <span className="text-sm font-medium">Proposed Action</span>
             </div>
             {pendingActions.actions.map((action, i) => (
-              <p key={i} className="text-sm text-muted-foreground mb-2">
-                {action.description}
-              </p>
+              <div key={i} className="mb-2">
+                <p className="text-sm text-muted-foreground">{action.description}</p>
+                {action.prompt && (
+                  <details className="mt-2 group">
+                    <summary className="text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
+                      View prompt ({action.prompt.length.toLocaleString()} chars)
+                    </summary>
+                    <pre className="mt-2 max-h-64 overflow-auto rounded border border-border bg-muted/50 p-2 text-xs whitespace-pre-wrap font-mono">
+                      {action.prompt}
+                    </pre>
+                  </details>
+                )}
+              </div>
             ))}
             <div className="flex justify-end gap-2">
               <Button

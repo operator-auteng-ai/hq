@@ -594,6 +594,35 @@ export class PlanningEngine {
   }
 
   /**
+   * Build the prompt that would be sent to a skill agent without actually
+   * running it. Used by the orchestrator chat to show users what the skill
+   * agent will see before they confirm a runSkill action. Returns null if
+   * the project or its workspace cannot be read.
+   */
+  previewSkillPrompt(
+    projectId: string,
+    skillName: SkillName,
+    context?: SkillContext,
+  ): string | null {
+    const db = getDb()
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get()
+    if (!project?.workspacePath) return null
+
+    try {
+      // Re-install skills so the preview reflects the canonical skill file
+      installSkills(project.workspacePath)
+      const skillContent = readSkillContent(project.workspacePath, skillName)
+      return buildSkillPrompt(skillContent, project.prompt, context)
+    } catch {
+      return null
+    }
+  }
+
+  /**
    * Run a single skill agent for a project.
    * Spawns the agent and returns immediately — the agent runs in the background.
    */

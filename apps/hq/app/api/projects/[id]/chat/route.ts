@@ -3,7 +3,15 @@ import { getDb, schema } from "@/lib/db"
 import { eq, asc } from "drizzle-orm"
 import { buildProjectContext, loadChatHistory } from "@/lib/services/context-builder"
 import { extractActions } from "@/lib/services/action-extractor"
+import { getPlanningEngine, type SkillName } from "@/lib/services/planning-engine"
 import { getAnthropicApiKey } from "@/lib/services/secrets"
+
+const VALID_SKILL_NAMES: ReadonlySet<SkillName> = new Set([
+  "vision",
+  "milestones",
+  "architecture",
+  "design",
+])
 import { z } from "zod"
 
 type RouteParams = { params: Promise<{ id: string }> }
@@ -114,6 +122,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
           // Extract actions from response
           const actions = extractActions(fullResponse)
+
+          // For runSkill actions, attach a preview of the prompt the agent
+          // will receive so the user can review it in the confirmation card.
+          const engine = getPlanningEngine()
+          for (const action of actions) {
+            if (action.action !== "runSkill") continue
+            const parts = action.entityId.split(/\s+/)
+            const skillName = parts[0] as SkillName
+            if (!VALID_SKILL_NAMES.has(skillName)) continue
+            const milestoneName = parts.slice(1).join(" ") || undefined
+            const preview = engine.previewSkillPrompt(id, skillName, {
+              milestoneName,
+              instruction: parsed.message,
+            })
+            if (preview) action.prompt = preview
+          }
 
           // Persist assistant message
           const assistantMessageId = crypto.randomUUID()

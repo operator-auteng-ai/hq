@@ -2,6 +2,8 @@ export interface ProposedAction {
   action: string
   entityId: string
   description: string
+  /** For runSkill actions: the full prompt the agent will receive. */
+  prompt?: string
 }
 
 const ALLOWED_ACTIONS: Record<string, string> = {
