@@ -48,35 +48,35 @@
 }
 
 .dark {
-    --background: oklch(0.147 0.004 49.3);
-    --foreground: oklch(0.986 0.002 67.8);
-    --card: oklch(0.214 0.009 43.1);
-    --card-foreground: oklch(0.986 0.002 67.8);
-    --popover: oklch(0.214 0.009 43.1);
-    --popover-foreground: oklch(0.986 0.002 67.8);
-    --primary: oklch(0.424 0.199 265.638);
+    --background: oklch(0.205 0.006 260);
+    --foreground: oklch(0.92 0.006 260);
+    --card: oklch(0.245 0.008 260);
+    --card-foreground: oklch(0.92 0.006 260);
+    --popover: oklch(0.245 0.008 260);
+    --popover-foreground: oklch(0.92 0.006 260);
+    --primary: oklch(0.58 0.2 265);
     --primary-foreground: oklch(0.97 0.014 254.604);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.268 0.011 36.5);
-    --muted-foreground: oklch(0.714 0.014 41.2);
-    --accent: oklch(0.268 0.011 36.5);
-    --accent-foreground: oklch(0.986 0.002 67.8);
+    --secondary: oklch(0.28 0.01 260);
+    --secondary-foreground: oklch(0.92 0 0);
+    --muted: oklch(0.26 0.008 260);
+    --muted-foreground: oklch(0.58 0.02 260);
+    --accent: oklch(0.26 0.008 260);
+    --accent-foreground: oklch(0.92 0.006 260);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
+    --input: oklch(1 0 0 / 12%);
     --ring: oklch(0.547 0.021 43.1);
     --chart-1: oklch(0.809 0.105 251.813);
     --chart-2: oklch(0.623 0.214 259.815);
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
-    --sidebar: oklch(0.214 0.009 43.1);
-    --sidebar-foreground: oklch(0.986 0.002 67.8);
+    --sidebar: oklch(0.19 0.008 260);
+    --sidebar-foreground: oklch(0.92 0.006 260);
     --sidebar-primary: oklch(0.623 0.214 259.815);
     --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
-    --sidebar-accent: oklch(0.268 0.011 36.5);
-    --sidebar-accent-foreground: oklch(0.986 0.002 67.8);
+    --sidebar-accent: oklch(0.26 0.008 260);
+    --sidebar-accent-foreground: oklch(0.92 0.006 260);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.547 0.021 43.1);
 
@@ -147,4 +147,9 @@
   html {
     @apply font-sans;
     }
+
+  /* Hide layout sidebar trigger when page provides its own */
+  #main-content:has([data-owns-sidebar-trigger]) > #layout-sidebar-trigger {
+    display: none;
+  }
 }

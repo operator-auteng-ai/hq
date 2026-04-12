@@ -6,7 +6,6 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 const roboto = Roboto({ subsets: ["latin"], variable: "--font-sans" })
@@ -43,11 +42,10 @@ export default function RootLayout({
             <SidebarProvider>
               <AppSidebar />
               <SidebarInset className="min-w-0">
-                <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-                  <SidebarTrigger className="-ml-1" />
-                  <Separator orientation="vertical" className="mr-2 h-4" />
-                </header>
-                <main className="flex-1 overflow-auto p-6">
+                <main id="main-content" className="flex-1 overflow-auto p-6 pt-14 relative">
+                  <div id="layout-sidebar-trigger" className="absolute top-3.5 left-3.5 z-10">
+                    <SidebarTrigger />
+                  </div>
                   {children}
                 </main>
               </SidebarInset>

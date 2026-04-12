@@ -10,7 +10,16 @@ import { OrchestratorChat } from "@/components/orchestrator-chat"
 import { ArtifactViewer, type ProjectDocs } from "@/components/artifact-viewer"
 import { type SystemMessageData } from "@/components/system-message"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ArchiveIcon, FolderIcon } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import { ArchiveIcon, FolderIcon, SettingsIcon } from "lucide-react"
 
 interface Project {
   id: string
@@ -368,25 +377,73 @@ export default function ProjectDetailPage({
   if (!project) return null
 
   return (
-    <div className="-m-6 flex h-[calc(100vh-3rem)] overflow-hidden">
+    <div className="-mx-6 -mb-6 -mt-14 relative z-20 flex h-screen overflow-hidden" data-owns-sidebar-trigger>
       {/* Center column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-semibold truncate">{project.name}</h1>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <SidebarTrigger className="shrink-0" />
+            <h1 className="text-lg font-semibold truncate">{project.name}</h1>
             <StatusBadge status={project.status} />
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
             {project.workspacePath && (
-              <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+              <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5 bg-muted/50 rounded-md px-2.5 py-1">
                 <FolderIcon className="h-3 w-3" />
-                {project.workspacePath}
+                <span className="max-w-[200px] truncate">{project.workspacePath}</span>
               </span>
             )}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                  <SettingsIcon className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Project Settings</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Name</label>
+                    <p className="text-sm text-muted-foreground">{project.name}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Status</label>
+                    <div><StatusBadge status={project.status} /></div>
+                  </div>
+                  {project.workspacePath && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Workspace</label>
+                      <p className="text-sm text-muted-foreground font-mono">{project.workspacePath}</p>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Created</label>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(project.createdAt).toLocaleDateString(undefined, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium text-destructive">Danger Zone</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Archiving a project removes it from your active list. This action can be undone.
+                    </p>
+                    <Button variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={handleArchive}>
+                      <ArchiveIcon className="mr-2 h-4 w-4" />
+                      Archive Project
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
-          <Button variant="outline" size="sm" onClick={handleArchive}>
-            <ArchiveIcon className="mr-2 h-4 w-4" />
-            Archive
-          </Button>
         </div>
 
         {/* Pipeline nav */}
@@ -397,27 +454,29 @@ export default function ProjectDetailPage({
           runningLevel={runningLevel}
         />
 
-        {/* Awaiting review banner */}
-        {awaitingReview && (
-          <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-muted/50">
-            <span className="text-sm text-muted-foreground">
-              Review the {awaitingReview} document, then continue when ready.
-            </span>
-            <Button
-              size="sm"
-              onClick={() => {
-                pipelineTriggered.current = false // Allow re-trigger
-                triggerPipeline()
-              }}
-              disabled={pipelineRunning}
-            >
-              Continue Pipeline
-            </Button>
-          </div>
-        )}
-
         {/* Content area */}
         <div className="flex-1 overflow-auto p-6">
+          {/* Awaiting review task */}
+          {awaitingReview && (
+            <div className="mb-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+              <span className="h-5 w-5 rounded border-2 border-primary/40 shrink-0" />
+              <span className="text-sm text-foreground/80 flex-1">
+                Review the <span className="font-medium">{awaitingReview}</span> document, then continue when ready.
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => {
+                  pipelineTriggered.current = false
+                  triggerPipeline()
+                }}
+                disabled={pipelineRunning}
+              >
+                Continue Pipeline
+              </Button>
+            </div>
+          )}
           <ArtifactViewer
             level={activeLevel}
             docs={docs}
@@ -429,7 +488,7 @@ export default function ProjectDetailPage({
       </div>
 
       {/* Chat panel - always visible */}
-      <div className="w-[350px] shrink-0 border-l border-border flex flex-col overflow-hidden">
+      <div className="w-[350px] shrink-0 border-l border-border bg-card/30 flex flex-col overflow-hidden">
         <OrchestratorChat projectId={id} systemMessages={systemMessages} />
       </div>
     </div>

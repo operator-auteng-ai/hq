@@ -29,7 +29,7 @@ export function PipelineNav({
   const isClickable = (level: PipelineLevel) => isCompleted(level) || isActive(level)
 
   return (
-    <div className="flex items-center gap-1 px-6 py-3 border-b border-border">
+    <div className="flex items-center gap-0 px-6 py-2 border-b border-border">
       {LEVELS.map((level, i) => {
         const completed = isCompleted(level.key)
         const active = isActive(level.key)
@@ -40,12 +40,12 @@ export function PipelineNav({
         const showConnector = i > 0
 
         return (
-          <div key={level.key} className="flex items-center gap-1 flex-1 first:flex-initial last:flex-initial">
+          <div key={level.key} className="flex items-center gap-0 flex-1 first:flex-initial last:flex-initial">
             {showConnector && (
               <div
-                className={`h-px flex-1 ${
+                className={`h-px flex-1 mx-1 ${
                   prevCompleted && completed
-                    ? "bg-[oklch(var(--status-completed))]"
+                    ? "bg-[oklch(var(--status-completed))]/50"
                     : "bg-border"
                 }`}
               />
@@ -54,27 +54,31 @@ export function PipelineNav({
               type="button"
               onClick={() => clickable && onSelect(level.key)}
               disabled={!clickable}
-              className={`flex flex-col items-center gap-1 ${
-                clickable ? "cursor-pointer" : "cursor-default"
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                active
+                  ? "bg-primary/10"
+                  : clickable
+                    ? "hover:bg-muted/60 cursor-pointer"
+                    : "cursor-default opacity-50"
               }`}
             >
               <div
-                className={`h-3 w-3 rounded-full ${
+                className={`h-2 w-2 rounded-full shrink-0 ${
                   running
                     ? "bg-[oklch(var(--status-running))] animate-pulse"
                     : active
-                      ? "bg-primary ring-2 ring-primary/30"
+                      ? "bg-primary ring-2 ring-primary/25"
                       : completed
                         ? "bg-[oklch(var(--status-completed))]"
-                        : "bg-muted-foreground/30"
+                        : "bg-muted-foreground/25"
                 }`}
               />
               <span
-                className={`text-xs ${
+                className={`text-xs whitespace-nowrap ${
                   active
                     ? "font-semibold text-foreground"
                     : completed
-                      ? "font-medium text-foreground"
+                      ? "font-medium text-foreground/80"
                       : "font-medium text-muted-foreground"
                 }`}
               >
