@@ -1,10 +1,12 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk"
 import { z } from "zod"
 import { getBackgroundProcessManager } from "./background-process-manager"
+import { getDeliveryTracker } from "@/lib/services/delivery-tracker"
 import type { BackgroundProcessType } from "./types"
 
 export function createHqMcpServer(projectId: string) {
   const bgManager = getBackgroundProcessManager()
+  const tracker = getDeliveryTracker()
 
   const getProcessOutput = tool(
     "get_process_output",
@@ -171,6 +173,99 @@ export function createHqMcpServer(projectId: string) {
     },
   )
 
+  // ── Planning tools (milestones) ──────────────────────────────────────
+
+  const listMilestones = tool(
+    "list_milestones",
+    "List the current milestones for this project from the database. Returns each milestone's name, description, MVP boundary flag, sort order, and status. Call this before set_milestones in re-run mode so you can preserve fields you don't intend to change.",
+    {},
+    async () => {
+      const milestones = tracker.getMilestones(projectId)
+      if (milestones.length === 0) {
+        return {
+          content: [
+            { type: "text" as const, text: "No milestones exist yet for this project." },
+          ],
+        }
+      }
+      const payload = milestones.map((m) => ({
+        name: m.name,
+        description: m.description,
+        isMvpBoundary: m.isMvpBoundary === 1,
+        sortOrder: m.sortOrder,
+        status: m.status,
+      }))
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+      }
+    },
+  )
+
+  const setMilestones = tool(
+    "set_milestones",
+    "Replace the project's milestone set with the given ordered list. Milestones are keyed by name: existing milestones keep their id and status, new names are inserted as 'pending', names not in the list are deleted. Exactly one milestone should have isMvpBoundary=true (the last milestone of the MVP scope). Order in the array determines sortOrder.",
+    {
+      milestones: z
+        .array(
+          z.object({
+            name: z
+              .string()
+              .min(1)
+              .describe("Milestone name — e.g. 'Photo Onboarding'. Used as the key for upsert."),
+            description: z
+              .string()
+              .min(1)
+              .describe("One-sentence description of the user-visible capability this milestone delivers."),
+            isMvpBoundary: z
+              .boolean()
+              .default(false)
+              .describe("True if this is the last milestone of the MVP scope. Exactly one milestone should have this set."),
+          }),
+        )
+        .min(1)
+        .describe("Ordered list of milestones. Array position becomes sortOrder (0-indexed)."),
+    },
+    async (args) => {
+      try {
+        const mvpCount = args.milestones.filter((m) => m.isMvpBoundary).length
+        if (mvpCount > 1) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Error: ${mvpCount} milestones have isMvpBoundary=true. Exactly one should mark the MVP boundary.`,
+              },
+            ],
+          }
+        }
+
+        const result = tracker.setMilestones(projectId, args.milestones)
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Saved ${result.length} milestone(s) to the database.\n\n${result
+                .map(
+                  (m, i) =>
+                    `${i + 1}. ${m.name}${m.isMvpBoundary === 1 ? " <- MVP" : ""} (${m.status})`,
+                )
+                .join("\n")}`,
+            },
+          ],
+        }
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to set milestones: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        }
+      }
+    },
+  )
+
   return createSdkMcpServer({
     name: "hq",
     version: "1.0.0",
@@ -180,6 +275,8 @@ export function createHqMcpServer(projectId: string) {
       getProcessStatus,
       startProcess,
       stopProcess,
+      listMilestones,
+      setMilestones,
     ],
   })
 }

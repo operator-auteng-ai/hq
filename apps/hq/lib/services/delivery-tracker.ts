@@ -144,6 +144,84 @@ export class DeliveryTracker {
     return results
   }
 
+  /**
+   * Replace the project's milestone set with the given list, keyed by name.
+   *
+   * Semantics:
+   * - If a milestone with a given name already exists, update its description,
+   *   isMvpBoundary, and sortOrder. Preserve its id, status, and completedAt.
+   * - If a milestone name is new, insert it with status "pending".
+   * - If an existing milestone's name is not in the new list, delete it
+   *   (and cascade to its phases/tasks per the schema foreign keys).
+   *
+   * This is the canonical write path for milestones. The milestones skill
+   * calls it via the hq MCP server so agents never need to serialize their
+   * own database back out of a markdown file.
+   */
+  setMilestones(
+    projectId: string,
+    items: Array<{
+      name: string
+      description?: string
+      isMvpBoundary?: boolean
+    }>,
+  ): MilestoneRecord[] {
+    const db = getDb()
+
+    // Load existing milestones for this project, keyed by name
+    const existing = db
+      .select()
+      .from(schema.milestones)
+      .where(eq(schema.milestones.projectId, projectId))
+      .all()
+    const existingByName = new Map(existing.map((m) => [m.name, m]))
+    const incomingNames = new Set(items.map((item) => item.name))
+
+    // Delete milestones whose names are not in the new list
+    for (const m of existing) {
+      if (!incomingNames.has(m.name)) {
+        db.delete(schema.milestones)
+          .where(eq(schema.milestones.id, m.id))
+          .run()
+      }
+    }
+
+    // Upsert each incoming milestone by name
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      const prior = existingByName.get(item.name)
+      if (prior) {
+        db.update(schema.milestones)
+          .set({
+            description: item.description ?? null,
+            sortOrder: i,
+            isMvpBoundary: item.isMvpBoundary ? 1 : 0,
+          })
+          .where(eq(schema.milestones.id, prior.id))
+          .run()
+      } else {
+        db.insert(schema.milestones)
+          .values({
+            id: crypto.randomUUID(),
+            projectId,
+            name: item.name,
+            description: item.description ?? null,
+            sortOrder: i,
+            isMvpBoundary: item.isMvpBoundary ? 1 : 0,
+            status: "pending",
+          })
+          .run()
+      }
+    }
+
+    return db
+      .select()
+      .from(schema.milestones)
+      .where(eq(schema.milestones.projectId, projectId))
+      .orderBy(asc(schema.milestones.sortOrder))
+      .all()
+  }
+
   updateMilestoneStatus(
     milestoneId: string,
     status: MilestoneStatus,

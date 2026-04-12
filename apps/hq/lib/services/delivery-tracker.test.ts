@@ -60,6 +60,100 @@ describe("DeliveryTracker", () => {
       expect(result[0].name).toBe("M1")
       expect(result[1].name).toBe("M2")
     })
+
+    describe("setMilestones", () => {
+      it("creates milestones when none exist", () => {
+        const project = seedProject(testDb)
+        const result = tracker.setMilestones(project.id, [
+          { name: "Photo Onboarding", description: "User can upload a photo" },
+          { name: "Virtual Try-On", description: "User can try garments" },
+          { name: "Order Submission", description: "User can order", isMvpBoundary: true },
+        ])
+        expect(result).toHaveLength(3)
+        expect(result[0].name).toBe("Photo Onboarding")
+        expect(result[0].sortOrder).toBe(0)
+        expect(result[0].status).toBe("pending")
+        expect(result[2].isMvpBoundary).toBe(1)
+      })
+
+      it("updates description of an existing milestone without changing id or status", () => {
+        const project = seedProject(testDb)
+        const [m1] = tracker.createMilestones(project.id, [
+          { name: "Photo Onboarding", description: "short" },
+        ])
+        tracker.updateMilestoneStatus(m1.id, "active")
+
+        const result = tracker.setMilestones(project.id, [
+          { name: "Photo Onboarding", description: "a much longer description" },
+        ])
+
+        expect(result).toHaveLength(1)
+        expect(result[0].id).toBe(m1.id)
+        expect(result[0].description).toBe("a much longer description")
+        expect(result[0].status).toBe("active")
+      })
+
+      it("deletes milestones that are missing from the new list", () => {
+        const project = seedProject(testDb)
+        tracker.createMilestones(project.id, [
+          { name: "M1" },
+          { name: "M2" },
+          { name: "M3" },
+        ])
+
+        const result = tracker.setMilestones(project.id, [
+          { name: "M1" },
+          { name: "M3" },
+        ])
+
+        expect(result).toHaveLength(2)
+        expect(result.map((m) => m.name)).toEqual(["M1", "M3"])
+      })
+
+      it("reorders existing milestones via sortOrder", () => {
+        const project = seedProject(testDb)
+        tracker.createMilestones(project.id, [
+          { name: "A" },
+          { name: "B" },
+          { name: "C" },
+        ])
+
+        const result = tracker.setMilestones(project.id, [
+          { name: "C" },
+          { name: "A" },
+          { name: "B" },
+        ])
+
+        expect(result.map((m) => m.name)).toEqual(["C", "A", "B"])
+        expect(result.map((m) => m.sortOrder)).toEqual([0, 1, 2])
+      })
+
+      it("moves the MVP boundary marker to a different milestone", () => {
+        const project = seedProject(testDb)
+        tracker.createMilestones(project.id, [
+          { name: "M1" },
+          { name: "M2", isMvpBoundary: true },
+          { name: "M3" },
+        ])
+
+        const result = tracker.setMilestones(project.id, [
+          { name: "M1" },
+          { name: "M2" },
+          { name: "M3", isMvpBoundary: true },
+        ])
+
+        expect(result.find((m) => m.name === "M2")?.isMvpBoundary).toBe(0)
+        expect(result.find((m) => m.name === "M3")?.isMvpBoundary).toBe(1)
+      })
+
+      it("replacing all milestones with an empty list deletes everything", () => {
+        const project = seedProject(testDb)
+        tracker.createMilestones(project.id, [{ name: "M1" }, { name: "M2" }])
+        const result = tracker.setMilestones(project.id, [])
+        expect(result).toHaveLength(0)
+        expect(tracker.getMilestones(project.id)).toHaveLength(0)
+      })
+    })
   })
 
   describe("Phase CRUD", () => {
