@@ -8,6 +8,7 @@ export interface MilestoneTreeData {
   milestones: Array<{
     id: string
     name: string
+    description: string | null
     status: string
     isMvpBoundary: number
     phases: Array<{

@@ -71,6 +71,22 @@ function Placeholder({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground">{text}</p>
 }
 
+function statusDotClass(status: string): string {
+  switch (status) {
+    case "completed":
+      return "bg-[oklch(var(--status-completed))]"
+    case "active":
+    case "in_progress":
+      return "bg-[oklch(var(--status-running))]"
+    case "pending":
+      return "bg-muted-foreground/30"
+    case "failed":
+      return "bg-[oklch(var(--status-failed))]"
+    default:
+      return "bg-muted-foreground/30"
+  }
+}
+
 function ArchSubNav({
   archDeltas,
   canonicalArch,
@@ -195,26 +211,93 @@ export function ArtifactViewer({
       }
       return <Placeholder text="Planning pipeline will generate VISION.md..." />
 
-    case "milestones":
-      if (docs?.milestones) {
-        return <MarkdownContent content={docs.milestones} />
-      }
+    case "milestones": {
       if (milestones && milestones.milestones.length > 0) {
+        // Find the MVP boundary index
+        const mvpIdx = milestones.milestones.findIndex((m) => m.isMvpBoundary === 1)
+
         return (
-          <div className="space-y-2">
-            {milestones.milestones.map((m) => (
-              <div key={m.id} className="flex items-center gap-2">
-                <StatusBadge status={m.status} />
-                <span className="text-sm">{m.name}</span>
-                {m.isMvpBoundary === 1 && (
-                  <span className="text-xs text-muted-foreground">&larr; MVP</span>
-                )}
-              </div>
-            ))}
+          <div className="space-y-3">
+            {/* Progress summary */}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground pb-2">
+              <span>{milestones.progress.completedMilestones}/{milestones.progress.totalMilestones} milestones</span>
+              <span>{milestones.progress.completedTasks}/{milestones.progress.totalTasks} tasks</span>
+            </div>
+
+            {milestones.milestones.map((m, i) => {
+              const desc = m.description ?? undefined
+              const completedTasks = m.phases.reduce(
+                (sum, p) => sum + p.tasks.filter((t) => t.status === "completed").length, 0,
+              )
+              const totalTasks = m.phases.reduce((sum, p) => sum + p.tasks.length, 0)
+              const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+              return (
+                <div key={m.id}>
+                  {/* MVP boundary divider */}
+                  {mvpIdx >= 0 && i === mvpIdx + 1 && (
+                    <div className="flex items-center gap-3 py-3">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Post-MVP</span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  <div className="rounded-lg border border-border bg-card/50 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${statusDotClass(m.status)}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium">{m.name}</span>
+                          <StatusBadge status={m.status} />
+                          {m.isMvpBoundary === 1 && (
+                            <span className="text-xs font-medium text-[oklch(var(--status-paused))] border border-[oklch(var(--status-paused))]/30 rounded px-1.5 py-0.5">
+                              MVP
+                            </span>
+                          )}
+                        </div>
+                        {desc && (
+                          <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">{desc}</p>
+                        )}
+                        {totalTasks > 0 && (
+                          <div className="flex items-center gap-3 mt-3">
+                            <div className="h-1.5 flex-1 max-w-48 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full bg-[oklch(var(--status-completed))] rounded-full transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground">{completedTasks}/{totalTasks} tasks</span>
+                          </div>
+                        )}
+                        {m.phases.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            {m.phases.map((p) => (
+                              <span
+                                key={p.id}
+                                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-0.5"
+                              >
+                                <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(p.status)}`} />
+                                {p.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )
       }
+
+      // Fallback: show raw markdown if no structured data yet
+      if (docs?.milestones) {
+        return <MarkdownContent content={docs.milestones} />
+      }
       return <Placeholder text="Milestones will appear when the pipeline completes." />
+    }
 
     case "architecture": {
       const archDeltas = docs?.archDeltas ?? []
