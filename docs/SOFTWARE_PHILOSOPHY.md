@@ -10,6 +10,8 @@ Every piece of knowledge must have a single, unambiguous, authoritative represen
 
 **Applies to**: code, configuration, schema definitions, documentation. If two docs say the same thing, one of them is wrong (or will be soon).
 
+**Applies especially to state ownership.** A piece of state should have exactly one writer and one canonical home. If the same field (a milestone description, a task status, a user's email) lives in both a markdown file and a database row, one of them is a cache that *will* go stale. Pick the primary home based on the nature of the field: prose/intent belongs in markdown, structured mutable state belongs in the database. Never parse your own database back out of a markdown file you wrote — if an agent or a user needs to edit structured state, give them a typed API, not a file format.
+
 ## Composition Over Inheritance
 
 Build behaviour by assembling small, focused pieces rather than extending deep class hierarchies. Inheritance creates tight coupling and fragile base class problems. Composition creates flexibility — you can swap, wrap, and recombine components without rewriting the tree above them.

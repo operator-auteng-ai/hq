@@ -255,5 +255,9 @@ The Playwright suite (`apps/hq/e2e/smoke.spec.ts`) starts the dev server automat
 
 1. **Reference, don't duplicate** — If you're writing content that exists in another doc, link to it
 2. **Each level zooms deeper** — VISION → ARCH → PLAN. No level repeats the one above
-3. **Docs are the source of truth** — If code disagrees with docs, either the code or the docs need updating (determined during feedback)
+3. **Prose docs are the source of truth for intent. The DB is the source of truth for state.**
+   - *Prose docs* (VISION, ARCH, TAXONOMY, CODING_STANDARDS, per-phase design docs) capture intent, rationale, and narrative. They live in `docs/` as markdown, are edited by humans and agents, and are the authoritative record of *what we're building and why*.
+   - *Planning items* (milestones, phases, tasks) carry execution state — status, timestamps, progress, relationships. They live in the SQLite DB and are mutated through typed APIs or agent MCP tools. They are **not** parsed from markdown at runtime.
+   - Artifacts like `MILESTONES.md` may still exist as human-readable **exports** rendered from the DB, but they are output-only and never read back. If an agent needs to update a milestone, it uses the MCP tool, not a file edit.
+   - If code disagrees with a prose doc, either the code or the doc needs updating (determined during feedback). If code disagrees with planning state in the DB, the DB wins — the code has a bug.
 4. **Feedback flows upward** — Tasks discover things that update phases, phases discover things that update architecture, versions discover things that update vision
