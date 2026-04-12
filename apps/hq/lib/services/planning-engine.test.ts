@@ -4,7 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { eq } from "drizzle-orm"
 import {
-  parseMilestonesDoc,
+  renderMilestonesDoc,
   parseArchComponentList,
   milestoneToArchDir,
 } from "./planning-engine"
@@ -40,99 +40,50 @@ vi.mock("@/lib/services/secrets", () => ({
   getAnthropicApiKey: () => "sk-test-key",
 }))
 
-describe("parseMilestonesDoc", () => {
-  it("parses milestones with explicit MVP marker", () => {
-    const content = `# MILESTONES — Test
+describe("renderMilestonesDoc", () => {
+  it("renders milestones with MVP and post-MVP sections", () => {
+    const doc = renderMilestonesDoc("MatchMatchy", [
+      { name: "Photo Onboarding", description: "User uploads a photo.", isMvpBoundary: 0, sortOrder: 0 },
+      { name: "Virtual Try-On", description: "User tries garments.", isMvpBoundary: 0, sortOrder: 1 },
+      { name: "Order Submission", description: "User places an order.", isMvpBoundary: 1, sortOrder: 2 },
+      { name: "Fit Refinement", description: "User refines fit.", isMvpBoundary: 0, sortOrder: 3 },
+    ])
 
-## MVP Scope
-
-### M1: Core Invoicing
-Create and send invoices to clients
-
-### M2: Payments
-Accept Stripe payments online
-
-### M3: Dashboard ← MVP
-Track revenue and outstanding invoices
-
----
-
-## Post-MVP
-
-### M4: Recurring Invoices
-Automate recurring billing
-`
-    const milestones = parseMilestonesDoc(content)
-
-    expect(milestones).toHaveLength(4)
-    expect(milestones[0].name).toBe("Core Invoicing")
-    expect(milestones[0].description).toBe(
-      "Create and send invoices to clients",
-    )
-    expect(milestones[0].isMvpBoundary).toBe(false)
-    expect(milestones[2].name).toBe("Dashboard")
-    expect(milestones[2].isMvpBoundary).toBe(true)
-    expect(milestones[3].name).toBe("Recurring Invoices")
-    expect(milestones[3].isMvpBoundary).toBe(false)
+    expect(doc).toContain("# MILESTONES — MatchMatchy")
+    expect(doc).toContain("## MVP Scope")
+    expect(doc).toContain("### M1: Photo Onboarding")
+    expect(doc).toContain("User uploads a photo.")
+    expect(doc).toContain("### M3: Order Submission <- MVP")
+    expect(doc).toContain("## Post-MVP")
+    expect(doc).toContain("### M4: Fit Refinement")
   })
 
-  it("falls back to last milestone in MVP Scope section when no explicit marker", () => {
-    const content = `# MILESTONES
-
-## MVP Scope
-
-### M1: Auth
-Users can sign up and log in
-
-### M2: Dashboard
-Users see their data
-
-## Post-MVP
-
-### M3: Reports
-Export reports
-`
-    const milestones = parseMilestonesDoc(content)
-
-    expect(milestones).toHaveLength(3)
-    expect(milestones[1].name).toBe("Dashboard")
-    expect(milestones[1].isMvpBoundary).toBe(true)
-    expect(milestones[2].isMvpBoundary).toBe(false)
+  it("sorts by sortOrder regardless of input order", () => {
+    const doc = renderMilestonesDoc("Test", [
+      { name: "Third", description: null, isMvpBoundary: 1, sortOrder: 2 },
+      { name: "First", description: null, isMvpBoundary: 0, sortOrder: 0 },
+      { name: "Second", description: null, isMvpBoundary: 0, sortOrder: 1 },
+    ])
+    const firstIdx = doc.indexOf("First")
+    const secondIdx = doc.indexOf("Second")
+    const thirdIdx = doc.indexOf("Third")
+    expect(firstIdx).toBeLessThan(secondIdx)
+    expect(secondIdx).toBeLessThan(thirdIdx)
   })
 
-  it("handles single milestone", () => {
-    const content = `# MILESTONES
-
-## MVP Scope
-
-### M1: MVP ← MVP
-The whole thing
-`
-    const milestones = parseMilestonesDoc(content)
-
-    expect(milestones).toHaveLength(1)
-    expect(milestones[0].name).toBe("MVP")
-    expect(milestones[0].isMvpBoundary).toBe(true)
+  it("omits Post-MVP section when all milestones are in MVP", () => {
+    const doc = renderMilestonesDoc("Test", [
+      { name: "A", description: "a", isMvpBoundary: 0, sortOrder: 0 },
+      { name: "B", description: "b", isMvpBoundary: 1, sortOrder: 1 },
+    ])
+    expect(doc).not.toContain("## Post-MVP")
   })
 
-  it("handles empty content", () => {
-    const milestones = parseMilestonesDoc("")
-    expect(milestones).toHaveLength(0)
-  })
-
-  it("handles milestones without MVP section", () => {
-    const content = `# MILESTONES
-
-### M1: First
-Do first thing
-
-### M2: Second ← MVP
-Do second thing
-`
-    const milestones = parseMilestonesDoc(content)
-
-    expect(milestones).toHaveLength(2)
-    expect(milestones[1].isMvpBoundary).toBe(true)
+  it("includes the do-not-edit header", () => {
+    const doc = renderMilestonesDoc("Test", [
+      { name: "A", description: null, isMvpBoundary: 1, sortOrder: 0 },
+    ])
+    expect(doc).toMatch(/rendered from the HQ database/i)
   })
 })
 

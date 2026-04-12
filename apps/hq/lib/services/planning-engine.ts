@@ -78,80 +78,64 @@ interface StepResult {
   tasksCreated?: number
 }
 
-export interface ParsedMilestone {
-  name: string
-  description: string
-  isMvpBoundary: boolean
-}
-
 // ── Pure functions ─────────────────────────────────────────────────────
 
 /**
- * Parse MILESTONES.md to extract milestone entries.
+ * Render MILESTONES.md markdown from a set of milestone records.
  *
- * Expected format:
- *   ### M1: Core Invoicing ← MVP
- *   Build the core invoicing module...
- *
- * "← MVP" suffix marks the MVP boundary milestone.
- * If no "← MVP" marker, the last milestone under a "## MVP Scope" section
- * is treated as the boundary.
+ * The file is an output-only, human-readable export of the database state.
+ * Agents must never read this file back into the DB — planning items live
+ * in the DB and are written through the mcp__hq__set_milestones tool.
  */
-export function parseMilestonesDoc(content: string): ParsedMilestone[] {
-  const lines = content.split("\n")
-  const milestones: ParsedMilestone[] = []
-  let inMvpSection = false
-  let lastMvpSectionIndex = -1
+export function renderMilestonesDoc(
+  projectName: string,
+  milestones: Array<{
+    name: string
+    description: string | null
+    isMvpBoundary: number
+    sortOrder: number
+  }>,
+): string {
+  const sorted = [...milestones].sort((a, b) => a.sortOrder - b.sortOrder)
+  const mvpIdx = sorted.findIndex((m) => m.isMvpBoundary === 1)
+  const mvpEnd = mvpIdx >= 0 ? mvpIdx : sorted.length - 1
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  const lines: string[] = []
+  lines.push(`# MILESTONES — ${projectName}`)
+  lines.push("")
+  lines.push(
+    "> This file is rendered from the HQ database. Do not edit it directly —",
+  )
+  lines.push(
+    "> changes here will be overwritten. Edit milestones through the HQ UI",
+  )
+  lines.push("> or by re-running the milestones skill.")
+  lines.push("")
+  lines.push("## MVP Scope")
+  lines.push("")
 
-    // Track MVP Scope section
-    if (/^##\s+MVP\s+Scope/i.test(line)) {
-      inMvpSection = true
-      continue
-    }
-    // A new ## heading ends the MVP section
-    if (inMvpSection && /^##\s+/.test(line) && !/^###/.test(line)) {
-      inMvpSection = false
-    }
+  for (let i = 0; i <= mvpEnd && i < sorted.length; i++) {
+    const m = sorted[i]
+    const mvpMarker = m.isMvpBoundary === 1 ? " <- MVP" : ""
+    lines.push(`### M${i + 1}: ${m.name}${mvpMarker}`)
+    if (m.description) lines.push(m.description)
+    lines.push("")
+  }
 
-    // Match milestone headings: ### M1: Name or ### M1: Name ← MVP
-    const match = line.match(/^###\s+M\d+:\s*(.+?)(?:\s*←\s*MVP)?\s*$/)
-    if (!match) continue
-
-    const hasExplicitMvp = /←\s*MVP\s*$/.test(line)
-    const name = match[1].trim()
-
-    // Find next non-empty line as description
-    let description = ""
-    for (let j = i + 1; j < lines.length; j++) {
-      const descLine = lines[j].trim()
-      if (descLine.length > 0) {
-        description = descLine
-        break
-      }
-    }
-
-    const index = milestones.length
-    milestones.push({
-      name,
-      description,
-      isMvpBoundary: hasExplicitMvp,
-    })
-
-    if (inMvpSection) {
-      lastMvpSectionIndex = index
+  if (mvpEnd < sorted.length - 1) {
+    lines.push("---")
+    lines.push("")
+    lines.push("## Post-MVP")
+    lines.push("")
+    for (let i = mvpEnd + 1; i < sorted.length; i++) {
+      const m = sorted[i]
+      lines.push(`### M${i + 1}: ${m.name}`)
+      if (m.description) lines.push(m.description)
+      lines.push("")
     }
   }
 
-  // If no explicit MVP marker found, use last milestone in MVP Scope section
-  const hasExplicitMvp = milestones.some((m) => m.isMvpBoundary)
-  if (!hasExplicitMvp && lastMvpSectionIndex >= 0) {
-    milestones[lastMvpSectionIndex].isMvpBoundary = true
-  }
-
-  return milestones
+  return lines.join("\n")
 }
 
 /**
@@ -257,10 +241,9 @@ export class PlanningEngine {
     const profile = (config.collaborationProfile ?? project.collaborationProfile ?? "operator") as CollaborationProfile
     const step = project.planningStep ?? "init"
 
-    // Install skills on first run
-    if (step === "init") {
-      installSkills(project.workspacePath)
-    }
+    // Re-install skills on every run so workspace copies stay in sync with
+    // the canonical skills/ directory. installSkills is idempotent.
+    installSkills(project.workspacePath)
 
     // Run steps until we hit a collaborative pause or complete
     let currentStep = step === "init" ? "vision" : step
@@ -379,6 +362,7 @@ export class PlanningEngine {
   ): Promise<StepResult> {
     const agentManager = getAgentManager()
     const tracker = getDeliveryTracker()
+    const db = getDb()
 
     // ── Vision ──
     if (step === "vision") {
@@ -413,21 +397,48 @@ export class PlanningEngine {
         onProgress?.({ level: "milestones", status: "failed", error: reason })
         return { success: false, error: `Milestones agent ${status}: ${reason}`, skillResult: result }
       }
-      const msPath = path.join(workspacePath, "docs", "MILESTONES.md")
-      if (!fs.existsSync(msPath)) {
-        onProgress?.({ level: "milestones", status: "failed", error: "MILESTONES.md not created" })
-        return { success: false, error: "MILESTONES.md not created", skillResult: result }
+
+      // The agent writes milestones to the DB via mcp__hq__set_milestones.
+      // Read them back and verify the skill actually persisted something.
+      const records = tracker.getMilestones(projectId)
+      if (records.length === 0) {
+        onProgress?.({
+          level: "milestones",
+          status: "failed",
+          error: "Milestones skill completed but no milestones were persisted. The agent may have skipped the mcp__hq__set_milestones tool call.",
+        })
+        return {
+          success: false,
+          error: "No milestones persisted",
+          skillResult: result,
+        }
       }
-      const content = fs.readFileSync(msPath, "utf-8")
-      const parsed = parseMilestonesDoc(content)
-      const records = tracker.createMilestones(projectId, parsed)
+
+      // Render MILESTONES.md from the DB as a human-readable export
+      const project = db
+        .select()
+        .from(schema.projects)
+        .where(eq(schema.projects.id, projectId))
+        .get()
+      if (project) {
+        const docsDir = path.join(workspacePath, "docs")
+        fs.mkdirSync(docsDir, { recursive: true })
+        fs.writeFileSync(
+          path.join(docsDir, "MILESTONES.md"),
+          renderMilestonesDoc(project.name, records),
+          "utf-8",
+        )
+      }
+
       onProgress?.({ level: "milestones", status: "completed", detail: `${records.length} milestones` })
 
       // Next step: architecture for first milestone
-      if (records.length > 0) {
-        return { success: true, nextStep: `architecture:${records[0].name}`, skillResult: result, milestonesCreated: records.length }
+      return {
+        success: true,
+        nextStep: `architecture:${records[0].name}`,
+        skillResult: result,
+        milestonesCreated: records.length,
       }
-      return { success: true, nextStep: "complete", skillResult: result, milestonesCreated: records.length }
     }
 
     // ── Architecture (per milestone) ──
